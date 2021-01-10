@@ -1,0 +1,30 @@
+[package]
+name = "game"
+version = "0.1.0"
+authors = ["CalebLBaker <calebbaker774@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+console_error_panic_hook = "0.1.6"
+wasm-bindgen = "0.2.69"
+wasm-bindgen-futures = "0.4.19"
+
+[dependencies.web-sys]
+version = "0.3.46"
+features = [
+  'CanvasRenderingContext2d',
+  'console',
+  'CssStyleDeclaration',
+  'Document',
+  'HtmlCanvasElement',
+  'HtmlElement',
+  'HtmlImageElement',
+  'Window',
+]
+
+[lib]
+crate-type =["cdylib"]
+
+[profile.release]
+lto = true
+
