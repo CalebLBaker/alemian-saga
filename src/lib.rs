@@ -5,13 +5,9 @@ use wasm_bindgen::JsCast;
 
 mod game;
 
-#[cfg(debug_assertions)]
 fn log(msg: &str) {
     web_sys::console::log_1(&wasm_bindgen::JsValue::from_str(msg));
 }
-
-#[cfg(not(debug_assertions))]
-fn log(_: &str) {}
 
 #[wasm_bindgen]
 pub extern "C" fn start() {
@@ -23,16 +19,12 @@ async fn wrapper() {
     match WebBrowser::new() {
         Some(b) => {
             let result = game::run(b);
-            if cfg!(debug_assertions) {
-                if !result.await.is_some() {
-                    log("Failed while running the game");
-                }
+            if !result.await.is_some() {
+                log("Failed while running the game");
             }
         }
         None => {
-            if cfg!(debug_assertions) {
-                log("Failed to construct platform context");
-            }
+            log("Failed to construct platform context");
         }
     }
 }
