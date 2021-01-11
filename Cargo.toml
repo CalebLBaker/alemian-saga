@@ -22,6 +22,10 @@ features = [
   'Window',
 ]
 
+[features]
+# Treat warnings as errors
+strict = []
+
 [lib]
 crate-type =["cdylib"]
 
