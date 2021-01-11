@@ -16,7 +16,7 @@ pub extern fn start() {
 async fn wrapper() {
     match WebBrowser::new() {
         Some(b) => {
-            let result = game::run(b, get_image_element);
+            let result = game::run(b);
             if !result.await.is_some() {
                 log("Failed while running the game");
             }
@@ -25,32 +25,31 @@ async fn wrapper() {
     }
 }
 
-fn get_image_element(path: &str) -> Option<LoadedImageElement> {
-    let element = web_sys::HtmlImageElement::new().ok()?;
-    element.set_src(path);
-    Some(LoadedImageElement{ element: Some(element), handler: None })
-}
-
 struct LoadedImageElement {
     element: Option<web_sys::HtmlImageElement>,
     handler: Option<wasm_bindgen::closure::Closure<dyn FnMut()>>,
 }
 
 impl std::future::Future for LoadedImageElement {
-    type Output = web_sys::HtmlImageElement;
+    type Output = Option<web_sys::HtmlImageElement>;
     fn poll(self: std::pin::Pin<& mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
         let future = self.get_mut();
-        let element = future.element.as_mut().unwrap();
-        if element.complete() {
-            std::task::Poll::Ready(future.element.take().unwrap())
-        }
-        else {
-            let waker = cx.waker().clone();
-            let closure = Box::new(move || { waker.wake_by_ref() }) as Box<dyn FnMut()>;
-            future.handler = Some(wasm_bindgen::closure::Closure::wrap(closure));
-            let onload = Some(future.handler.as_ref().unwrap().as_ref().unchecked_ref());
-            element.set_onload(onload);
-            std::task::Poll::Pending
+        let element = future.element.as_mut();
+        match element {
+            Some(e) => {
+                if e.complete() {
+                    std::task::Poll::Ready(Some(future.element.take().unwrap()))
+                }
+                else {
+                    let waker = cx.waker().clone();
+                    let closure = Box::new(move || { waker.wake_by_ref() }) as Box<dyn FnMut()>;
+                    future.handler = Some(wasm_bindgen::closure::Closure::wrap(closure));
+                    let onload = Some(future.handler.as_ref().unwrap().as_ref().unchecked_ref());
+                    e.set_onload(onload);
+                    std::task::Poll::Pending
+                }
+            }
+            None => std::task::Poll::Ready(None)
         }
     }
 }
@@ -89,7 +88,10 @@ impl WebBrowser {
 }
 
 impl game::Platform for WebBrowser {
+
     type Image = web_sys::HtmlImageElement;
+
+    type ImageFuture = LoadedImageElement;
 
     fn draw(&self, image: &Self::Image, left: f64, top: f64, width: f64, height: f64) {
         let context = &self.context;
@@ -99,6 +101,17 @@ impl game::Platform for WebBrowser {
     fn get_width(&self) -> f64 { self.width }
 
     fn get_height(&self) -> f64 { self.height }
+
+    fn get_image(path: &str) -> Self::ImageFuture {
+        let element = web_sys::HtmlImageElement::new();
+        match element {
+            Ok(e) => {
+                e.set_src(path);
+                LoadedImageElement{ element: Some(e), handler: None }
+            }
+            _ => { LoadedImageElement{ element: None, handler: None } }
+        }
+    }
 
 }
 
