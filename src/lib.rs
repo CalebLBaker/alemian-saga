@@ -1,5 +1,7 @@
 #![cfg_attr(feature = "strict", deny(warnings))]
 
+use async_trait::async_trait;
+use bytes::Buf;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
@@ -16,7 +18,7 @@ pub extern "C" fn start() {
 }
 
 async fn wrapper() {
-    match WebBrowser::new() {
+    match WebBrowser::new("http://localhost/") {
         Some(b) => {
             let result = game::run(b);
             if !result.await.is_some() {
@@ -60,8 +62,10 @@ impl std::future::Future for LoadedImageElement {
     }
 }
 
-struct WebBrowser {
+struct WebBrowser<'a> {
     context: web_sys::CanvasRenderingContext2d,
+    web_client: reqwest::Client,
+    host: &'a str,
     width: f64,
     height: f64,
 }
@@ -72,8 +76,8 @@ fn clear_margin_and_padding(element: &web_sys::HtmlElement) {
     let _ = style.set_property("padding", "0");
 }
 
-impl WebBrowser {
-    fn new() -> Option<WebBrowser> {
+impl<'a> WebBrowser<'a> {
+    fn new(host: &'a str) -> Option<WebBrowser> {
         const SIZE_MULTIPLIER: f64 = 0.995;
         let window = web_sys::window()?;
         let document = window.document()?;
@@ -93,16 +97,22 @@ impl WebBrowser {
         let context = context_object
             .dyn_into::<web_sys::CanvasRenderingContext2d>()
             .ok()?;
+        let web_client = reqwest::Client::new();
         Some(WebBrowser {
             context,
+            web_client,
+            host,
             width,
             height,
         })
     }
 }
 
-impl game::Platform for WebBrowser {
+#[async_trait(?Send)]
+impl game::Platform for WebBrowser<'_> {
     type Image = web_sys::HtmlImageElement;
+
+    type File = bytes::buf::Reader<bytes::Bytes>;
 
     type ImageFuture = LoadedImageElement;
 
@@ -136,4 +146,10 @@ impl game::Platform for WebBrowser {
             },
         }
     }
+
+    async fn get_file(&self, path: &str) -> Option<Self::File> {
+        let response = self.web_client.get(&(self.host.to_owned() + path)).send();
+        Some(response.await.ok()?.bytes().await.ok()?.reader())
+    }
+
 }
