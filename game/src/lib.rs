@@ -5,8 +5,6 @@ use bytes::Buf;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
-mod game;
-
 fn log(msg: &str) {
     web_sys::console::log_1(&wasm_bindgen::JsValue::from_str(msg));
 }
@@ -20,7 +18,7 @@ pub extern "C" fn start() {
 async fn wrapper() {
     match WebBrowser::new("http://localhost/") {
         Some(b) => {
-            let result = game::run(b);
+            let result = game_lib::run(b);
             if !result.await.is_some() {
                 log("Failed while running the game");
             }
@@ -109,7 +107,7 @@ impl<'a> WebBrowser<'a> {
 }
 
 #[async_trait(?Send)]
-impl game::Platform for WebBrowser<'_> {
+impl game_lib::Platform for WebBrowser<'_> {
     type Image = web_sys::HtmlImageElement;
 
     type File = bytes::buf::Reader<bytes::Bytes>;

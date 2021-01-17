@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "strict", deny(warnings))]
+
 use async_trait::async_trait;
 
 #[async_trait(?Send)]
@@ -12,6 +14,14 @@ pub trait Platform {
     async fn get_file(&self, path: &str) -> Option<Self::File>;
 }
 
+pub type TileType = String;
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Map {
+    pub tile_types: Vec<TileType>,
+    pub map: ndarray::Array2<u32>,
+}
+
 pub async fn run<P: Platform>(platform: P) -> Option<()> {
     let image = P::get_image("plain.png");
     platform.draw(
@@ -23,3 +33,4 @@ pub async fn run<P: Platform>(platform: P) -> Option<()> {
     );
     Some({})
 }
+

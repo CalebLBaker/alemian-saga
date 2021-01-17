@@ -1,0 +1,17 @@
+{
+    "schema": "Map",
+    "tileTypes": {
+        "plain": "plain.png"
+    },
+    "map": {
+        "v": 1,
+        "dim": [5, 5],
+        "data": [
+            "plain", "plain", "plain", "plain", "plain",
+            "plain", "plain", "plain", "plain", "plain",
+            "plain", "plain", "plain", "plain", "plain",
+            "plain", "plain", "plain", "plain", "plain",
+            "plain", "plain", "plain", "plain", "plain"
+        ]
+    }
+}
