@@ -31,6 +31,20 @@ pub trait Platform {
 
     // Log a message (typically to stdout or the equivalent)
     fn log(path: &str);
+
+    // Attempt to draw an image
+    fn attempt_draw(
+        &self,
+        img: Option<&Self::Image>,
+        left: f64,
+        top: f64,
+        width: f64,
+        height: f64,
+    ) {
+        if let Some(i) = img {
+            self.draw(i, left, top, width, height);
+        }
+    }
 }
 
 // Serialized format for metadata about a particular type of tile
@@ -94,12 +108,13 @@ async fn run_internal<P: Platform>(platform: &P) -> Result<(), Error> {
     // Retrieve map file
     let map_file: Map = rmp_serde::decode::from_read(platform.get_file("map.map").await?)?;
 
-    // Get a map from image paths to images
+    // Create map from image paths to images
     let mut image_map = std::collections::HashMap::new();
     let images = map_file.tile_types.iter().map(|x| {
         let image_str = x.image.as_str();
         (image_str, P::get_image(image_str))
     });
+    let cursor_future = P::get_image("cursor.png");
     for (n, f) in images.collect::<Vec<_>>().into_iter() {
         if let Some(image) = f.await {
             image_map.insert(n, image);
@@ -116,11 +131,17 @@ async fn run_internal<P: Platform>(platform: &P) -> Result<(), Error> {
     let tile_width = platform.get_width() / columns as f64;
     let tile_height = platform.get_height() / rows as f64;
     for ((r, c), t) in map.indexed_iter() {
-        if let Some(i) = t.image {
-            let x = c as f64 * tile_width;
-            platform.draw(i, x, r as f64 * tile_height, tile_width, tile_height);
-        }
+        let x = c as f64 * tile_width;
+        platform.attempt_draw(t.image, x, r as f64 * tile_height, tile_width, tile_height);
     }
+
+    platform.attempt_draw(
+        cursor_future.await.as_ref(),
+        0.0,
+        0.0,
+        tile_width,
+        tile_height,
+    );
 
     Ok(())
 }
