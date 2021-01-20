@@ -1,6 +1,7 @@
 #![cfg_attr(feature = "strict", deny(warnings))]
 
 use async_trait::async_trait;
+use futures::StreamExt;
 
 // Trait used for abstracting away logic that is specific to a particular platform
 #[async_trait(?Send)]
@@ -47,6 +48,15 @@ pub trait Platform {
     }
 }
 
+// Type used to represent user input events
+#[derive(Clone, Copy)]
+pub enum Event {
+    Right,
+    Left,
+    Up,
+    Down,
+}
+
 // Serialized format for metadata about a particular type of tile
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct TileType {
@@ -61,8 +71,11 @@ pub struct Map {
 }
 
 // Entry point for starting game logic
-pub async fn run<P: Platform>(platform: P) {
-    if let Err(e) = run_internal(&platform).await {
+pub async fn run<P: Platform>(
+    platform: P,
+    mut event_queue: futures::channel::mpsc::Receiver<Event>,
+) {
+    if let Err(e) = run_internal(platform, &mut event_queue).await {
         P::log(e.msg.as_str());
     }
 }
@@ -87,24 +100,50 @@ struct Error {
     msg: String,
 }
 
-// Conversion from rmp serde errors to Error
-impl From<rmp_serde::decode::Error> for Error {
-    fn from(err: rmp_serde::decode::Error) -> Error {
+// Conversion into error type
+impl<E: std::string::ToString> From<E> for Error {
+    fn from(err: E) -> Error {
         Error {
             msg: err.to_string(),
         }
     }
 }
 
-// Conversion from String to Error
-impl From<String> for Error {
-    fn from(msg: String) -> Error {
-        Error { msg }
+// Struct for holding game state
+struct Game<'a, P: Platform> {
+    platform: P,
+    cursor_row: usize,
+    cursor_column: usize,
+    map: ndarray::Array2<Tile<'a, P>>,
+    cursor_image: Option<P::Image>,
+}
+
+impl<'a, P: Platform> Game<'a, P> {
+    fn move_cursor(&mut self, row: usize, column: usize) {
+        let (num_rows, num_columns) = self.map.dim();
+        let tile_width = self.platform.get_width() / num_columns as f64;
+        let tile_height = self.platform.get_height() / num_rows as f64;
+        let old_row = self.cursor_row;
+        let old_column = self.cursor_column;
+        let old_x = old_column as f64 * tile_width;
+        let old_y = old_row as f64 * tile_height;
+        let image = self.map[[old_row, old_column]].image;
+        self.platform
+            .attempt_draw(image, old_x, old_y, tile_width, tile_height);
+        self.cursor_row = row;
+        self.cursor_column = column;
+        let x = column as f64 * tile_width;
+        let y = row as f64 * tile_height;
+        self.platform
+            .attempt_draw(self.cursor_image.as_ref(), x, y, tile_width, tile_height);
     }
 }
 
 // Main function containing all of the game logic
-async fn run_internal<P: Platform>(platform: &P) -> Result<(), Error> {
+async fn run_internal<P: Platform>(
+    platform: P,
+    event_queue: &mut futures::channel::mpsc::Receiver<Event>,
+) -> Result<(), Error> {
     // Retrieve map file
     let map_file: Map = rmp_serde::decode::from_read(platform.get_file("map.map").await?)?;
 
@@ -135,13 +174,45 @@ async fn run_internal<P: Platform>(platform: &P) -> Result<(), Error> {
         platform.attempt_draw(t.image, x, r as f64 * tile_height, tile_width, tile_height);
     }
 
-    platform.attempt_draw(
-        cursor_future.await.as_ref(),
-        0.0,
-        0.0,
-        tile_width,
-        tile_height,
-    );
+    let cursor_image = cursor_future.await;
+    platform.attempt_draw(cursor_image.as_ref(), 0.0, 0.0, tile_width, tile_height);
+
+    let mut game = Game {
+        platform,
+        cursor_row: 0,
+        cursor_column: 0,
+        map,
+        cursor_image,
+    };
+
+    let last_column = columns - 1;
+    let last_row = rows - 1;
+
+    while let Some(e) = event_queue.next().await {
+        match e {
+            Event::Right => {
+                if game.cursor_column < last_column {
+                    game.move_cursor(game.cursor_row, game.cursor_column + 1);
+                }
+            }
+            Event::Left => {
+                if game.cursor_column > 0 {
+                    game.move_cursor(game.cursor_row, game.cursor_column - 1);
+                }
+            }
+            Event::Up => {
+                if game.cursor_row > 0 {
+                    game.move_cursor(game.cursor_row - 1, game.cursor_column);
+                }
+            }
+            Event::Down => {
+                if game.cursor_row < last_row {
+                    game.move_cursor(game.cursor_row + 1, game.cursor_column);
+                }
+            }
+        }
+    }
+    P::log("closing");
 
     Ok(())
 }

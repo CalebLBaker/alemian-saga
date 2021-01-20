@@ -1,17 +1,23 @@
 #![cfg_attr(feature = "strict", deny(warnings))]
+#![feature(unboxed_closures)]
+#![feature(fn_traits)]
 
 use async_trait::async_trait;
 use bytes::Buf;
+use futures::SinkExt;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+
+mod locale;
 
 // Entry Point; Construct WebBrowser object and run game
 #[wasm_bindgen]
 pub extern "C" fn start() {
     console_error_panic_hook::set_once();
-    let platform = WebBrowser::new("http://localhost/");
+    let (sender, receiver) = futures::channel::mpsc::channel(8);
+    let platform = WebBrowser::new("http://localhost/", sender);
     if let Some(p) = platform {
-        wasm_bindgen_futures::spawn_local(game_lib::run(p));
+        wasm_bindgen_futures::spawn_local(game_lib::run(p, receiver));
     }
 }
 
@@ -49,6 +55,54 @@ impl std::future::Future for LoadedImageElement {
     }
 }
 
+struct KeyboardEventHandler {
+    event_queue: futures::channel::mpsc::Sender<game_lib::Event>,
+    key_bindings: std::collections::HashMap<&'static str, game_lib::Event>,
+}
+
+async fn send_async(
+    mut event_queue: futures::channel::mpsc::Sender<game_lib::Event>,
+    event: game_lib::Event,
+) {
+    let _ = event_queue.feed(event).await;
+}
+
+impl KeyboardEventHandler {
+    fn new(event_queue: futures::channel::mpsc::Sender<game_lib::Event>) -> KeyboardEventHandler {
+        KeyboardEventHandler {
+            event_queue,
+            key_bindings: locale::key_bindings(),
+        }
+    }
+
+    fn handle(&mut self, args: web_sys::Event) {
+        if let Some(keyboard_event) = args.dyn_ref::<web_sys::KeyboardEvent>() {
+            if let Some(&game_event) = self.key_bindings.get(keyboard_event.key().as_str()) {
+                self.send(game_event);
+            }
+        }
+    }
+
+    fn send(&mut self, event: game_lib::Event) {
+        if let Err(_) = self.event_queue.try_send(event) {
+            wasm_bindgen_futures::spawn_local(send_async(self.event_queue.clone(), event));
+        }
+    }
+}
+
+impl FnOnce<(web_sys::Event,)> for KeyboardEventHandler {
+    type Output = ();
+    extern "rust-call" fn call_once(mut self, args: (web_sys::Event,)) {
+        self.handle(args.0);
+    }
+}
+
+impl FnMut<(web_sys::Event,)> for KeyboardEventHandler {
+    extern "rust-call" fn call_mut(&mut self, args: (web_sys::Event,)) {
+        self.handle(args.0);
+    }
+}
+
 // Platform type that abstracts away logic that's specific to a web browser/wasm environment
 struct WebBrowser<'a> {
     context: web_sys::CanvasRenderingContext2d,
@@ -56,6 +110,8 @@ struct WebBrowser<'a> {
     host: &'a str,
     width: f64,
     height: f64,
+    _keyboard_handler: wasm_bindgen::closure::Closure<dyn FnMut(web_sys::Event)>,
+    _event_queue: futures::channel::mpsc::Sender<game_lib::Event>,
 }
 
 // Sets the margins and padding on an HtmlElement to 0
@@ -67,7 +123,10 @@ fn clear_margin_and_padding(element: &web_sys::HtmlElement) {
 
 // Constructor and helper functions for the WebBrowser type
 impl<'a> WebBrowser<'a> {
-    fn new(host: &'a str) -> Option<WebBrowser> {
+    fn new(
+        host: &'a str,
+        event_queue: futures::channel::mpsc::Sender<game_lib::Event>,
+    ) -> Option<WebBrowser> {
         const SIZE_MULTIPLIER: f64 = 0.995;
 
         // Get handlers for various items from the Html document
@@ -94,12 +153,22 @@ impl<'a> WebBrowser<'a> {
             .dyn_into::<web_sys::CanvasRenderingContext2d>()
             .ok()?;
         let web_client = reqwest::Client::new();
+
+        let event_handler = KeyboardEventHandler::new(event_queue.clone());
+        let closure = Box::new(event_handler) as Box<dyn FnMut(web_sys::Event)>;
+
+        let keyboard_handler = wasm_bindgen::closure::Closure::wrap(closure);
+        let handler_ref = keyboard_handler.as_ref().unchecked_ref();
+        let _ = document_element.add_event_listener_with_callback("keydown", handler_ref);
+
         Some(WebBrowser {
             context,
             web_client,
             host,
             width,
             height,
+            _keyboard_handler: keyboard_handler,
+            _event_queue: event_queue,
         })
     }
 
