@@ -2,22 +2,31 @@
 #![feature(unboxed_closures)]
 #![feature(fn_traits)]
 
+use std::pin;
+use std::task;
+
 use async_trait::async_trait;
 use bytes::Buf;
+use futures::channel::mpsc;
 use futures::SinkExt;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
-mod locale;
+use game_lib::Platform;
+
+const HOST: &str = "http://localhost/";
 
 // Entry Point; Construct WebBrowser object and run game
 #[wasm_bindgen]
 pub extern "C" fn start() {
     console_error_panic_hook::set_once();
-    let (sender, receiver) = futures::channel::mpsc::channel(8);
-    let platform = WebBrowser::new("http://localhost/", sender);
-    if let Some(p) = platform {
-        wasm_bindgen_futures::spawn_local(game_lib::run(p, receiver));
+    wasm_bindgen_futures::spawn_local(run_game());
+}
+
+async fn run_game() {
+    let (sender, receiver) = mpsc::channel(8);
+    if let Some(p) = WebBrowser::new(HOST, sender).await {
+        game_lib::run(p, receiver).await;
     }
 }
 
@@ -30,16 +39,13 @@ struct LoadedImageElement {
 // Implementation of Future trait for LoadedImageElement
 impl std::future::Future for LoadedImageElement {
     type Output = Option<web_sys::HtmlImageElement>;
-    fn poll(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
+    fn poll(self: pin::Pin<&mut Self>, cx: &mut task::Context<'_>) -> task::Poll<Self::Output> {
         let future = self.get_mut();
         let element = future.element.as_mut();
         match element {
             Some(e) => {
                 if e.complete() {
-                    std::task::Poll::Ready(Some(future.element.take().unwrap()))
+                    task::Poll::Ready(Some(future.element.take().unwrap()))
                 } else {
                     // If the element isn't complete, set an onload handler to wake the waker
                     let waker = cx.waker().clone();
@@ -47,37 +53,27 @@ impl std::future::Future for LoadedImageElement {
                     future.handler = Some(wasm_bindgen::closure::Closure::wrap(closure));
                     let onload = Some(future.handler.as_ref().unwrap().as_ref().unchecked_ref());
                     e.set_onload(onload);
-                    std::task::Poll::Pending
+                    task::Poll::Pending
                 }
             }
-            None => std::task::Poll::Ready(None),
+            None => task::Poll::Ready(None),
         }
     }
 }
 
 struct KeyboardEventHandler {
-    event_queue: futures::channel::mpsc::Sender<game_lib::Event>,
-    key_bindings: std::collections::HashMap<&'static str, game_lib::Event>,
+    event_queue: mpsc::Sender<game_lib::Event>,
+    key_bindings: std::collections::HashMap<String, game_lib::Event>,
 }
 
-async fn send_async(
-    mut event_queue: futures::channel::mpsc::Sender<game_lib::Event>,
-    event: game_lib::Event,
-) {
+async fn send_async(mut event_queue: mpsc::Sender<game_lib::Event>, event: game_lib::Event) {
     let _ = event_queue.feed(event).await;
 }
 
 impl KeyboardEventHandler {
-    fn new(event_queue: futures::channel::mpsc::Sender<game_lib::Event>) -> KeyboardEventHandler {
-        KeyboardEventHandler {
-            event_queue,
-            key_bindings: locale::key_bindings(),
-        }
-    }
-
     fn handle(&mut self, args: web_sys::Event) {
         if let Some(keyboard_event) = args.dyn_ref::<web_sys::KeyboardEvent>() {
-            if let Some(&game_event) = self.key_bindings.get(keyboard_event.key().as_str()) {
+            if let Some(&game_event) = self.key_bindings.get(&keyboard_event.key()) {
                 self.send(game_event);
             }
         }
@@ -110,8 +106,8 @@ struct WebBrowser<'a> {
     host: &'a str,
     width: f64,
     height: f64,
-    _keyboard_handler: wasm_bindgen::closure::Closure<dyn FnMut(web_sys::Event)>,
-    _event_queue: futures::channel::mpsc::Sender<game_lib::Event>,
+    keyboard_handler: Option<wasm_bindgen::closure::Closure<dyn FnMut(web_sys::Event)>>,
+    _event_queue: mpsc::Sender<game_lib::Event>,
 }
 
 // Sets the margins and padding on an HtmlElement to 0
@@ -123,16 +119,16 @@ fn clear_margin_and_padding(element: &web_sys::HtmlElement) {
 
 // Constructor and helper functions for the WebBrowser type
 impl<'a> WebBrowser<'a> {
-    fn new(
+    async fn new(
         host: &'a str,
-        event_queue: futures::channel::mpsc::Sender<game_lib::Event>,
-    ) -> Option<WebBrowser> {
+        event_queue: mpsc::Sender<game_lib::Event>,
+    ) -> Option<WebBrowser<'a>> {
         const SIZE_MULTIPLIER: f64 = 0.995;
 
         // Get handlers for various items from the Html document
         let window = web_sys::window()?;
         let document = window.document()?;
-        let canvas_element = document.get_element_by_id("gameCanvas")?;
+        let canvas_element = document.get_element_by_id("g")?;
         let canvas = canvas_element.dyn_ref::<web_sys::HtmlCanvasElement>()?;
         let document_element = document.document_element()?;
 
@@ -154,22 +150,28 @@ impl<'a> WebBrowser<'a> {
             .ok()?;
         let web_client = reqwest::Client::new();
 
-        let event_handler = KeyboardEventHandler::new(event_queue.clone());
-        let closure = Box::new(event_handler) as Box<dyn FnMut(web_sys::Event)>;
-
-        let keyboard_handler = wasm_bindgen::closure::Closure::wrap(closure);
-        let handler_ref = keyboard_handler.as_ref().unchecked_ref();
-        let _ = document_element.add_event_listener_with_callback("keydown", handler_ref);
-
-        Some(WebBrowser {
+        let mut ret = WebBrowser {
             context,
             web_client,
             host,
             width,
             height,
-            _keyboard_handler: keyboard_handler,
-            _event_queue: event_queue,
-        })
+            keyboard_handler: None,
+            _event_queue: event_queue.clone(),
+        };
+
+        let key_bindings = ret.get_keybindings();
+        let event_handler = KeyboardEventHandler {
+            event_queue,
+            key_bindings: key_bindings.await?,
+        };
+        let closure = Box::new(event_handler) as Box<dyn FnMut(web_sys::Event)>;
+
+        let keyboard_handler = wasm_bindgen::closure::Closure::wrap(closure);
+        let handler_ref = keyboard_handler.as_ref().unchecked_ref();
+        let _ = document_element.add_event_listener_with_callback("keydown", handler_ref);
+        ret.keyboard_handler = Some(keyboard_handler);
+        Some(ret)
     }
 
     async fn get_file_internal(
@@ -186,11 +188,15 @@ impl<'a> WebBrowser<'a> {
 impl game_lib::Platform for WebBrowser<'_> {
     type Image = web_sys::HtmlImageElement;
 
+    type InputType = String;
+
+    type ScreenDistance = f64;
+
     type File = bytes::buf::Reader<bytes::Bytes>;
 
     type ImageFuture = LoadedImageElement;
 
-    fn draw(&self, image: &Self::Image, left: f64, top: f64, width: f64, height: f64) {
+    fn draw_primitive(&self, image: &Self::Image, left: f64, top: f64, width: f64, height: f64) {
         let context = &self.context;
         let _ = context
             .draw_image_with_html_image_element_and_dw_and_dh(image, left, top, width, height);
@@ -226,6 +232,10 @@ impl game_lib::Platform for WebBrowser<'_> {
             Ok(ret) => Ok(ret),
             Err(err) => Err(err.to_string()),
         }
+    }
+
+    fn string_to_input(input: String) -> Self::InputType {
+        input
     }
 
     fn log(msg: &str) {

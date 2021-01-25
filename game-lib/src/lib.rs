@@ -1,13 +1,72 @@
 #![cfg_attr(feature = "strict", deny(warnings))]
 
+use std::ops;
+
 use async_trait::async_trait;
+use futures::channel::mpsc;
 use futures::StreamExt;
+
+const KEYBINDINGS_PATH: &str = "keybindings/us.json";
+const MAP_FILE: &str = "map.map";
+const CURSOR_IMAGE: &str = "cursor.png";
+
+pub trait Scalar: ops::Div<Output = Self> + ops::Mul<Output = Self> + Copy {}
+impl<T> Scalar for T where T: ops::Div<Output = T> + ops::Mul<Output = Self> + Copy {}
+
+// Represents a vector
+#[derive(Clone, Copy)]
+pub struct Vector<T> {
+    x: T,
+    y: T,
+}
+
+impl<T: Scalar> Vector<T> {
+    fn piecewise_divde<U: Scalar + Into<T>>(self, rhs: Vector<U>) -> Vector<T> {
+        Vector {
+            x: self.x / rhs.x.into(),
+            y: self.y / rhs.y.into(),
+        }
+    }
+    fn piecewise_multiply<U: Scalar + Into<T>>(self, rhs: Vector<U>) -> Vector<T> {
+        Vector {
+            x: self.x * rhs.x.into(),
+            y: self.y * rhs.y.into(),
+        }
+    }
+}
+
+// Represents a rectangle
+pub struct Rectangle<T> {
+    top_left: Vector<T>,
+    size: Vector<T>,
+}
+
+impl<T: Scalar> Rectangle<T> {
+    fn top(&self) -> T {
+        self.top_left.y
+    }
+    fn left(&self) -> T {
+        self.top_left.x
+    }
+    fn width(&self) -> T {
+        self.size.x
+    }
+    fn height(&self) -> T {
+        self.size.y
+    }
+}
 
 // Trait used for abstracting away logic that is specific to a particular platform
 #[async_trait(?Send)]
 pub trait Platform {
     // Type used to represent images
     type Image;
+
+    // Type used to represent user input (keyboard or button)
+    type InputType: Eq + std::hash::Hash;
+
+    // Type used to represent distance on the screen
+    type ScreenDistance: Scalar + From<u32>;
 
     // Future type returned by get_image
     type ImageFuture: std::future::Future<Output = Option<Self::Image>>;
@@ -16,13 +75,22 @@ pub trait Platform {
     type File: std::io::Read;
 
     // Draw an image to the screen
-    fn draw(&self, img: &Self::Image, left: f64, top: f64, width: f64, height: f64);
+    fn draw_primitive(
+        &self,
+        img: &Self::Image,
+        left: Self::ScreenDistance,
+        top: Self::ScreenDistance,
+        width: Self::ScreenDistance,
+        height: Self::ScreenDistance,
+    );
+
+    fn string_to_input(input: String) -> Self::InputType;
 
     // Get the width of the game screen
-    fn get_width(&self) -> f64;
+    fn get_width(&self) -> Self::ScreenDistance;
 
     // Get the height of the game screen
-    fn get_height(&self) -> f64;
+    fn get_height(&self) -> Self::ScreenDistance;
 
     // Retrieve an image from a specified file path
     fn get_image(path: &str) -> Self::ImageFuture;
@@ -33,18 +101,49 @@ pub trait Platform {
     // Log a message (typically to stdout or the equivalent)
     fn log(path: &str);
 
-    // Attempt to draw an image
-    fn attempt_draw(
-        &self,
-        img: Option<&Self::Image>,
-        left: f64,
-        top: f64,
-        width: f64,
-        height: f64,
-    ) {
-        if let Some(i) = img {
-            self.draw(i, left, top, width, height);
+    fn get_screen_size(&self) -> Vector<Self::ScreenDistance> {
+        Vector {
+            x: self.get_width(),
+            y: self.get_height(),
         }
+    }
+
+    // Draw an image to the screen
+    fn draw(&self, img: &Self::Image, location: &Rectangle<Self::ScreenDistance>) {
+        let left = location.left();
+        self.draw_primitive(
+            img,
+            left,
+            location.top(),
+            location.width(),
+            location.height(),
+        );
+    }
+
+    // Attempt to draw an image
+    fn attempt_draw(&self, img: Option<&Self::Image>, location: &Rectangle<Self::ScreenDistance>) {
+        if let Some(i) = img {
+            self.draw(i, location);
+        }
+    }
+
+    async fn get_keybindings(&self) -> Option<std::collections::HashMap<Self::InputType, Event>> {
+        let mut ret = std::collections::HashMap::new();
+        let bindings_file = self.get_file(KEYBINDINGS_PATH).await.ok()?;
+        let bindings: Keybindings = serde_json::from_reader(bindings_file).ok()?;
+        for k in bindings.right.into_iter() {
+            ret.insert(Self::string_to_input(k), Event::Right);
+        }
+        for k in bindings.left.into_iter() {
+            ret.insert(Self::string_to_input(k), Event::Left);
+        }
+        for k in bindings.up.into_iter() {
+            ret.insert(Self::string_to_input(k), Event::Up);
+        }
+        for k in bindings.down.into_iter() {
+            ret.insert(Self::string_to_input(k), Event::Down);
+        }
+        Some(ret)
     }
 }
 
@@ -71,13 +170,18 @@ pub struct Map {
 }
 
 // Entry point for starting game logic
-pub async fn run<P: Platform>(
-    platform: P,
-    mut event_queue: futures::channel::mpsc::Receiver<Event>,
-) {
+pub async fn run<P: Platform>(platform: P, mut event_queue: mpsc::Receiver<Event>) {
     if let Err(e) = run_internal(platform, &mut event_queue).await {
         P::log(e.msg.as_str());
     }
+}
+
+#[derive(serde::Deserialize)]
+struct Keybindings {
+    right: Vec<String>,
+    left: Vec<String>,
+    up: Vec<String>,
+    down: Vec<String>,
 }
 
 // Represents a tile in the map
@@ -109,43 +213,53 @@ impl<E: std::string::ToString> From<E> for Error {
     }
 }
 
+type MapDistance = u32;
+
 // Struct for holding game state
 struct Game<'a, P: Platform> {
     platform: P,
-    cursor_row: usize,
-    cursor_column: usize,
+    cursor_pos: Vector<MapDistance>,
     map: ndarray::Array2<Tile<'a, P>>,
     cursor_image: Option<P::Image>,
 }
 
 impl<'a, P: Platform> Game<'a, P> {
-    fn move_cursor(&mut self, row: usize, column: usize) {
+    fn move_cursor(&mut self, pos: Vector<MapDistance>) {
         let (num_rows, num_columns) = self.map.dim();
-        let tile_width = self.platform.get_width() / num_columns as f64;
-        let tile_height = self.platform.get_height() / num_rows as f64;
-        let old_row = self.cursor_row;
-        let old_column = self.cursor_column;
-        let old_x = old_column as f64 * tile_width;
-        let old_y = old_row as f64 * tile_height;
-        let image = self.map[[old_row, old_column]].image;
+        let map_dims = Vector {
+            x: num_columns as MapDistance,
+            y: num_rows as MapDistance,
+        };
+        let tile_size = self.platform.get_screen_size().piecewise_divde(map_dims);
+        let old_pos = self.cursor_pos;
+        let old_screen_pos = tile_size.piecewise_multiply(old_pos);
+        let image = self.map[[old_pos.y as usize, old_pos.x as usize]].image;
+        self.platform.attempt_draw(
+            image,
+            &Rectangle {
+                top_left: old_screen_pos,
+                size: tile_size,
+            },
+        );
+        self.cursor_pos = pos;
+        let screen_pos = Rectangle {
+            top_left: tile_size.piecewise_multiply(pos),
+            size: tile_size,
+        };
         self.platform
-            .attempt_draw(image, old_x, old_y, tile_width, tile_height);
-        self.cursor_row = row;
-        self.cursor_column = column;
-        let x = column as f64 * tile_width;
-        let y = row as f64 * tile_height;
-        self.platform
-            .attempt_draw(self.cursor_image.as_ref(), x, y, tile_width, tile_height);
+            .attempt_draw(self.cursor_image.as_ref(), &screen_pos);
     }
 }
 
 // Main function containing all of the game logic
 async fn run_internal<P: Platform>(
     platform: P,
-    event_queue: &mut futures::channel::mpsc::Receiver<Event>,
+    event_queue: &mut mpsc::Receiver<Event>,
 ) -> Result<(), Error> {
     // Retrieve map file
-    let map_file: Map = rmp_serde::decode::from_read(platform.get_file("map.map").await?)?;
+    let map_file_future = platform.get_file(MAP_FILE);
+    let cursor_future = P::get_image(CURSOR_IMAGE);
+    let map_file: Map = rmp_serde::decode::from_read(map_file_future.await?)?;
 
     // Create map from image paths to images
     let mut image_map = std::collections::HashMap::new();
@@ -153,7 +267,6 @@ async fn run_internal<P: Platform>(
         let image_str = x.image.as_str();
         (image_str, P::get_image(image_str))
     });
-    let cursor_future = P::get_image("cursor.png");
     for (n, f) in images.collect::<Vec<_>>().into_iter() {
         if let Some(image) = f.await {
             image_map.insert(n, image);
@@ -167,47 +280,75 @@ async fn run_internal<P: Platform>(
 
     // Render the map
     let (rows, columns) = map.dim();
-    let tile_width = platform.get_width() / columns as f64;
-    let tile_height = platform.get_height() / rows as f64;
+    let map_size = Vector {
+        x: columns as MapDistance,
+        y: rows as MapDistance,
+    };
+    let tile_size = platform.get_screen_size().piecewise_divde(map_size);
     for ((r, c), t) in map.indexed_iter() {
-        let x = c as f64 * tile_width;
-        platform.attempt_draw(t.image, x, r as f64 * tile_height, tile_width, tile_height);
+        let map_pos = Vector {
+            x: c as MapDistance,
+            y: r as MapDistance,
+        };
+        let map_rect = Rectangle {
+            top_left: tile_size.piecewise_multiply(map_pos),
+            size: tile_size,
+        };
+        platform.attempt_draw(t.image, &map_rect);
     }
 
     let cursor_image = cursor_future.await;
-    platform.attempt_draw(cursor_image.as_ref(), 0.0, 0.0, tile_width, tile_height);
+    let cursor_pos = Rectangle {
+        top_left: Vector {
+            x: 0.into(),
+            y: 0.into(),
+        },
+        size: tile_size,
+    };
+    platform.attempt_draw(cursor_image.as_ref(), &cursor_pos);
 
     let mut game = Game {
         platform,
-        cursor_row: 0,
-        cursor_column: 0,
+        cursor_pos: Vector { x: 0, y: 0 },
         map,
         cursor_image,
     };
 
-    let last_column = columns - 1;
-    let last_row = rows - 1;
+    let last_column = map_size.x - 1;
+    let last_row = map_size.y - 1;
 
     while let Some(e) = event_queue.next().await {
         match e {
             Event::Right => {
-                if game.cursor_column < last_column {
-                    game.move_cursor(game.cursor_row, game.cursor_column + 1);
+                if game.cursor_pos.x < last_column {
+                    game.move_cursor(Vector {
+                        x: game.cursor_pos.x + 1,
+                        y: game.cursor_pos.y,
+                    });
                 }
             }
             Event::Left => {
-                if game.cursor_column > 0 {
-                    game.move_cursor(game.cursor_row, game.cursor_column - 1);
+                if game.cursor_pos.x > 0 {
+                    game.move_cursor(Vector {
+                        x: game.cursor_pos.x - 1,
+                        y: game.cursor_pos.y,
+                    });
                 }
             }
             Event::Up => {
-                if game.cursor_row > 0 {
-                    game.move_cursor(game.cursor_row - 1, game.cursor_column);
+                if game.cursor_pos.y > 0 {
+                    game.move_cursor(Vector {
+                        x: game.cursor_pos.x,
+                        y: game.cursor_pos.y - 1,
+                    });
                 }
             }
             Event::Down => {
-                if game.cursor_row < last_row {
-                    game.move_cursor(game.cursor_row + 1, game.cursor_column);
+                if game.cursor_pos.y < last_row {
+                    game.move_cursor(Vector {
+                        x: game.cursor_pos.x,
+                        y: game.cursor_pos.y + 1,
+                    });
                 }
             }
         }

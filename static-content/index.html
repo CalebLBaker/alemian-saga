@@ -1,16 +1,5 @@
 <!DOCTYPE html>
-<html>
-    <head>
-        <meta content="text/html;charset=utf-8" http-equiv="Content-Type" />
-    </head>
-    <body>
-        <script src="./pkg/game.js"></script>
-        <script>
-            window.addEventListener('load', async () => {
-                wasm_bindgen('./pkg/game_bg.wasm').then(m => m.start());
-            });
-        </script>
-        <canvas id="gameCanvas"></canvas>
-    </body>
-</html>
+<html><head><meta content="text/html;charset=utf-8" http-equiv="Content-Type" /></head><body><script src="./game.js"></script><script>
+window.addEventListener('load',async()=>{wasm_bindgen('./game_bg.wasm').then(m=>m.start());});
+</script><canvas id="g"></canvas></body></html>
 

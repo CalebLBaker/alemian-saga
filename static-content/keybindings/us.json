@@ -1,0 +1,6 @@
+{
+    "up": ["k", "w", "ArrowUp"],
+    "down": ["j", "s", "ArrowDown"],
+    "left": ["h", "a", "ArrowLeft"],
+    "right": ["l", "d", "ArrowRight"]
+}
