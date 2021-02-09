@@ -62,26 +62,26 @@ impl std::future::Future for LoadedImageElement {
 }
 
 struct KeyboardEventHandler {
-    event_queue: mpsc::Sender<game_lib::Event>,
-    key_bindings: std::collections::HashMap<String, game_lib::Event>,
+    event_queue: mpsc::Sender<game_lib::Event<i32>>,
+    key_bindings: std::collections::HashMap<String, game_lib::Event<i32>>,
 }
 
-async fn send_async(mut event_queue: mpsc::Sender<game_lib::Event>, event: game_lib::Event) {
+async fn send_async(mut event_queue: mpsc::Sender<game_lib::Event<i32>>, event: game_lib::Event<i32>) {
     let _ = event_queue.feed(event).await;
+}
+
+fn send(event_queue: &mut mpsc::Sender<game_lib::Event<i32>>, event: game_lib::Event<i32>) {
+    if let Err(_) = event_queue.try_send(event) {
+        wasm_bindgen_futures::spawn_local(send_async(event_queue.clone(), event));
+    }
 }
 
 impl KeyboardEventHandler {
     fn handle(&mut self, args: web_sys::Event) {
         if let Some(keyboard_event) = args.dyn_ref::<web_sys::KeyboardEvent>() {
             if let Some(&game_event) = self.key_bindings.get(&keyboard_event.key()) {
-                self.send(game_event);
+                send(&mut self.event_queue, game_event);
             }
-        }
-    }
-
-    fn send(&mut self, event: game_lib::Event) {
-        if let Err(_) = self.event_queue.try_send(event) {
-            wasm_bindgen_futures::spawn_local(send_async(self.event_queue.clone(), event));
         }
     }
 }
@@ -99,6 +99,31 @@ impl FnMut<(web_sys::Event,)> for KeyboardEventHandler {
     }
 }
 
+struct MouseEventHandler {
+    event_queue: mpsc::Sender<game_lib::Event<i32>>,
+}
+
+impl MouseEventHandler {
+    fn handle(&mut self, args: web_sys::Event) {
+        if let Some(mouse_event) = args.dyn_ref::<web_sys::MouseEvent>() {
+            send(&mut self.event_queue, game_lib::Event::MouseMove(game_lib::Vector{x: mouse_event.offset_x(), y: mouse_event.offset_y()}));
+        }
+    }
+}
+
+impl FnOnce<(web_sys::Event,)> for MouseEventHandler {
+    type Output = ();
+    extern "rust-call" fn call_once(mut self, args: (web_sys::Event,)) {
+        self.handle(args.0);
+    }
+}
+
+impl FnMut<(web_sys::Event,)> for MouseEventHandler {
+    extern "rust-call" fn call_mut(&mut self, args: (web_sys::Event,)) {
+        self.handle(args.0);
+    }
+}
+
 // Platform type that abstracts away logic that's specific to a web browser/wasm environment
 struct WebBrowser<'a> {
     context: web_sys::CanvasRenderingContext2d,
@@ -107,7 +132,8 @@ struct WebBrowser<'a> {
     width: f64,
     height: f64,
     keyboard_handler: Option<wasm_bindgen::closure::Closure<dyn FnMut(web_sys::Event)>>,
-    _event_queue: mpsc::Sender<game_lib::Event>,
+    mouse_handler: Option<wasm_bindgen::closure::Closure<dyn FnMut(web_sys::Event)>>,
+    _event_queue: mpsc::Sender<game_lib::Event<i32>>,
 }
 
 // Sets the margins and padding on an HtmlElement to 0
@@ -121,7 +147,7 @@ fn clear_margin_and_padding(element: &web_sys::HtmlElement) {
 impl<'a> WebBrowser<'a> {
     async fn new(
         host: &'a str,
-        event_queue: mpsc::Sender<game_lib::Event>,
+        event_queue: mpsc::Sender<game_lib::Event<i32>>,
     ) -> Option<WebBrowser<'a>> {
         const SIZE_MULTIPLIER: f64 = 0.995;
 
@@ -157,20 +183,29 @@ impl<'a> WebBrowser<'a> {
             width,
             height,
             keyboard_handler: None,
+            mouse_handler: None,
             _event_queue: event_queue.clone(),
         };
 
         let key_bindings = ret.get_keybindings();
-        let event_handler = KeyboardEventHandler {
-            event_queue,
+        let keyboard_event_handler = KeyboardEventHandler {
+            event_queue: event_queue.clone(),
             key_bindings: key_bindings.await?,
         };
-        let closure = Box::new(event_handler) as Box<dyn FnMut(web_sys::Event)>;
+        let keyboard_closure = Box::new(keyboard_event_handler) as Box<dyn FnMut(web_sys::Event)>;
 
-        let keyboard_handler = wasm_bindgen::closure::Closure::wrap(closure);
-        let handler_ref = keyboard_handler.as_ref().unchecked_ref();
-        let _ = document_element.add_event_listener_with_callback("keydown", handler_ref);
+        let keyboard_handler = wasm_bindgen::closure::Closure::wrap(keyboard_closure);
+        let keyboard_handler_ref = keyboard_handler.as_ref().unchecked_ref();
+        let _ = document_element.add_event_listener_with_callback("keydown", keyboard_handler_ref);
         ret.keyboard_handler = Some(keyboard_handler);
+
+        let mouse_event_handler = MouseEventHandler { event_queue };
+        let mouse_closure = Box::new(mouse_event_handler) as Box<dyn FnMut(web_sys::Event)>;
+        let mouse_handler = wasm_bindgen::closure::Closure::wrap(mouse_closure);
+        let mouse_handler_ref = mouse_handler.as_ref().unchecked_ref();
+        let _ = document_element.add_event_listener_with_callback("mousemove", mouse_handler_ref);
+        ret.mouse_handler = Some(mouse_handler);
+
         Some(ret)
     }
 
@@ -189,6 +224,8 @@ impl game_lib::Platform for WebBrowser<'_> {
     type Image = web_sys::HtmlImageElement;
 
     type InputType = String;
+
+    type MouseDistance = i32;
 
     type ScreenDistance = f64;
 

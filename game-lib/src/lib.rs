@@ -16,8 +16,14 @@ impl<T> Scalar for T where T: ops::Div<Output = T> + ops::Mul<Output = Self> + C
 // Represents a vector
 #[derive(Clone, Copy)]
 pub struct Vector<T> {
-    x: T,
-    y: T,
+    pub x: T,
+    pub y: T,
+}
+
+impl<T: Scalar + num_traits::ToPrimitive> Vector<T> {
+    fn lossy_cast<U: num_traits::NumCast>(self) -> Option<Vector<U>> {
+        Some(Vector{x: U::from(self.x)?, y: U::from(self.y)?})
+    }
 }
 
 impl<T: Scalar> Vector<T> {
@@ -32,6 +38,9 @@ impl<T: Scalar> Vector<T> {
             x: self.x * rhs.x.into(),
             y: self.y * rhs.y.into(),
         }
+    }
+    fn cast<U: Scalar + From<T>>(self) -> Vector<U> {
+        Vector { x: self.x.into(), y: self.y.into() }
     }
 }
 
@@ -65,8 +74,11 @@ pub trait Platform {
     // Type used to represent user input (keyboard or button)
     type InputType: Eq + std::hash::Hash;
 
+    // Type used to represent distance in mouse events (should be the same ScreenDistance
+    type MouseDistance: Scalar;
+
     // Type used to represent distance on the screen
-    type ScreenDistance: Scalar + From<u32>;
+    type ScreenDistance: Scalar + From<u32> + From<Self::MouseDistance> + num_traits::ToPrimitive;
 
     // Future type returned by get_image
     type ImageFuture: std::future::Future<Output = Option<Self::Image>>;
@@ -127,7 +139,7 @@ pub trait Platform {
         }
     }
 
-    async fn get_keybindings(&self) -> Option<std::collections::HashMap<Self::InputType, Event>> {
+    async fn get_keybindings(&self) -> Option<std::collections::HashMap<Self::InputType, Event<Self::MouseDistance>>> {
         let mut ret = std::collections::HashMap::new();
         let bindings_file = self.get_file(KEYBINDINGS_PATH).await.ok()?;
         let bindings: Keybindings = serde_json::from_reader(bindings_file).ok()?;
@@ -149,11 +161,12 @@ pub trait Platform {
 
 // Type used to represent user input events
 #[derive(Clone, Copy)]
-pub enum Event {
+pub enum Event<P: Scalar> {
     Right,
     Left,
     Up,
     Down,
+    MouseMove(Vector<P>),
 }
 
 // Serialized format for metadata about a particular type of tile
@@ -170,7 +183,7 @@ pub struct Map {
 }
 
 // Entry point for starting game logic
-pub async fn run<P: Platform>(platform: P, mut event_queue: mpsc::Receiver<Event>) {
+pub async fn run<P: Platform>(platform: P, mut event_queue: mpsc::Receiver<Event<P::MouseDistance>>) {
     if let Err(e) = run_internal(platform, &mut event_queue).await {
         P::log(e.msg.as_str());
     }
@@ -224,13 +237,18 @@ struct Game<'a, P: Platform> {
 }
 
 impl<'a, P: Platform> Game<'a, P> {
-    fn move_cursor(&mut self, pos: Vector<MapDistance>) {
+
+    fn get_tile_size(&self) -> Vector<P::ScreenDistance> {
         let (num_rows, num_columns) = self.map.dim();
         let map_dims = Vector {
             x: num_columns as MapDistance,
             y: num_rows as MapDistance,
         };
-        let tile_size = self.platform.get_screen_size().piecewise_divde(map_dims);
+        self.platform.get_screen_size().piecewise_divde(map_dims)
+    }
+
+    fn move_cursor(&mut self, pos: Vector<MapDistance>) {
+        let tile_size = self.get_tile_size();
         let old_pos = self.cursor_pos;
         let old_screen_pos = tile_size.piecewise_multiply(old_pos);
         let image = self.map[[old_pos.y as usize, old_pos.x as usize]].image;
@@ -254,7 +272,7 @@ impl<'a, P: Platform> Game<'a, P> {
 // Main function containing all of the game logic
 async fn run_internal<P: Platform>(
     platform: P,
-    event_queue: &mut mpsc::Receiver<Event>,
+    event_queue: &mut mpsc::Receiver<Event<P::MouseDistance>>,
 ) -> Result<(), Error> {
     // Retrieve map file
     let map_file_future = platform.get_file(MAP_FILE);
@@ -349,6 +367,15 @@ async fn run_internal<P: Platform>(
                         x: game.cursor_pos.x,
                         y: game.cursor_pos.y + 1,
                     });
+                }
+            }
+            Event::MouseMove(mouse_pos) => {
+                let screen_pos = mouse_pos.cast::<P::ScreenDistance>();
+                let cursor_pos = screen_pos.piecewise_divde(game.get_tile_size());
+                if let Some(p) = cursor_pos.lossy_cast::<MapDistance>() {
+                    if p.x <= last_column && p.y <= last_row {
+                        game.move_cursor(p);
+                    }
                 }
             }
         }
