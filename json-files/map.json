@@ -1,22 +1,23 @@
 {
     "schema": "Map",
     "tileTypes": {
-        "plain": { "image": "plain.png" }
+        "Plain": { "image": "plain.png" },
+        "Rough": { "image": "rough.png" }
     },
     "map": {
         "v": 1,
         "dim": [10, 10],
         "data": [
-            "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain",
-            "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain",
-            "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain",
-            "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain",
-            "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain",
-            "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain",
-            "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain",
-            "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain",
-            "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain",
-            "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain", "plain"
+            "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain",
+            "Plain", "Plain", "Plain", "Rough", "Rough", "Rough", "Rough", "Plain", "Plain", "Plain",
+            "Plain", "Plain", "Plain", "Plain", "Plain", "Rough", "Rough", "Rough", "Plain", "Plain",
+            "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Rough", "Rough", "Plain", "Plain",
+            "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain",
+            "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain",
+            "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain",
+            "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain",
+            "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain",
+            "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain"
         ]
     }
 }

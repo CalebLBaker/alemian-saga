@@ -3,9 +3,14 @@
 #[serde(tag = "schema")]
 enum JsonContent {
     Map {
-        tileTypes: std::collections::HashMap<String, alemian_saga_core::TileType>,
+        tileTypes: std::collections::HashMap<String, TileTypeInfo>,
         map: ndarray::Array2<String>,
     },
+}
+
+#[derive(serde::Deserialize)]
+struct TileTypeInfo {
+    image: String,
 }
 
 #[allow(non_snake_case)]
@@ -23,8 +28,8 @@ fn main() {
                     let mut name_to_index = std::collections::HashMap::new();
                     let mut tile_types = vec![];
                     for (i, (k, v)) in tileTypes.into_iter().enumerate() {
-                        name_to_index.insert(k, i as u32);
-                        tile_types.push(v);
+                        name_to_index.insert(k.clone(), i as u32);
+                        tile_types.push(alemian_saga_core::TileType{name: k, image: v.image});
                     }
                     let new_map = alemian_saga_core::Map {
                         tile_types: tile_types,

@@ -1,17 +1,20 @@
 #![cfg_attr(feature = "strict", deny(warnings))]
 
+use std::cmp;
 use std::ops;
 
 use async_trait::async_trait;
 use futures::channel::mpsc;
 use futures::StreamExt;
+use num_traits::FromPrimitive;
 
 const KEYBINDINGS_PATH: &str = "keybindings/us.json";
 const MAP_FILE: &str = "map.map";
 const CURSOR_IMAGE: &str = "cursor.png";
+const INFO_BAR_IMAGE: &str = "infobar.png";
 
-pub trait Scalar: ops::Div<Output = Self> + ops::Mul<Output = Self> + Copy {}
-impl<T> Scalar for T where T: ops::Div<Output = T> + ops::Mul<Output = Self> + Copy {}
+pub trait Scalar: ops::Div<Output = Self> + ops::Mul<Output = Self> + cmp::PartialOrd + Copy {}
+impl<T> Scalar for T where T: ops::Div<Output = T> + ops::Mul<Output = Self> + cmp::PartialOrd + Copy {}
 
 // Represents a vector
 #[derive(Clone, Copy)]
@@ -84,7 +87,7 @@ pub trait Platform {
     type MouseDistance: Scalar;
 
     // Type used to represent distance on the screen
-    type ScreenDistance: Scalar + From<u32> + From<Self::MouseDistance> + num_traits::ToPrimitive;
+    type ScreenDistance: Scalar + From<u32> + From<Self::MouseDistance> + num_traits::ToPrimitive + FromPrimitive;
 
     // Future type returned by get_image
     type ImageFuture: std::future::Future<Output = Option<Self::Image>>;
@@ -101,6 +104,8 @@ pub trait Platform {
         width: Self::ScreenDistance,
         height: Self::ScreenDistance,
     );
+
+    fn draw_text_primitive(&self, text: &str, x: Self::ScreenDistance, y: Self::ScreenDistance, max_width: Self::ScreenDistance);
 
     fn string_to_input(input: String) -> Self::InputType;
 
@@ -165,6 +170,10 @@ pub trait Platform {
         }
         Some(ret)
     }
+
+    fn draw_text(&self, text: &str, offset: Vector<Self::ScreenDistance>, max_width: Self::ScreenDistance) {
+        self.draw_text_primitive(text, offset.x, offset.y, max_width);
+    }
 }
 
 // Type used to represent user input events
@@ -181,6 +190,7 @@ pub enum Event<P: Scalar> {
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct TileType {
     pub image: String,
+    pub name: String,
 }
 
 // Serialized format for maps
@@ -211,16 +221,16 @@ struct Keybindings {
 // Represents a tile in the map
 struct Tile<'a, P: Platform> {
     image: Option<&'a P::Image>,
+    name: &'a str,
 }
 
-// Retrieves a reference to an image using a tile type id and the image_map and tile_types data
-// structures
-fn get_image<'a, P: Platform>(
+fn get_tile<'a, P: Platform>(
     image_map: &'a std::collections::HashMap<&str, P::Image>,
-    tile_types: &Vec<TileType>,
+    tile_types: &'a Vec<TileType>,
     type_id: usize,
-) -> Option<&'a P::Image> {
-    image_map.get(tile_types.get(type_id)?.image.as_str())
+) -> Option<Tile<'a, P>> {
+    let tile_type = tile_types.get(type_id)?;
+    Some(Tile { image: image_map.get(tile_type.image.as_str()), name: &tile_type.name })
 }
 
 // Error message type
@@ -245,9 +255,18 @@ struct Game<'a, P: Platform> {
     cursor_pos: Vector<MapDistance>,
     map: ndarray::Array2<Tile<'a, P>>,
     cursor_image: Option<P::Image>,
+    infobar_image: Option<P::Image>,
 }
 
 impl<'a, P: Platform> Game<'a, P> {
+
+    fn get_infobar_screen_height_ratio() -> P::ScreenDistance { 15.into() }
+    fn get_infobar_aspect_ration() -> P::ScreenDistance { 4.into() }
+    fn get_infobar_text_offset_ratio() -> P::ScreenDistance { 4.into() }
+    fn get_infobar_text_end() -> P::ScreenDistance {
+        P::ScreenDistance::from_f64(0.75).unwrap_or(1.into())
+    }
+
     fn get_tile_size(&self) -> Vector<P::ScreenDistance> {
         let (num_rows, num_columns) = self.map.dim();
         let map_dims = Vector {
@@ -257,11 +276,15 @@ impl<'a, P: Platform> Game<'a, P> {
         self.platform.get_screen_size().piecewise_divde(map_dims)
     }
 
+    fn get_tile(&self, pos: Vector<MapDistance>) -> &Tile<'a, P> {
+        return &self.map[[pos.y as usize, pos.x as usize]]
+    }
+
     fn move_cursor(&mut self, pos: Vector<MapDistance>) {
         let tile_size = self.get_tile_size();
         let old_pos = self.cursor_pos;
         let old_screen_pos = tile_size.piecewise_multiply(old_pos);
-        let image = self.map[[old_pos.y as usize, old_pos.x as usize]].image;
+        let image = self.get_tile(old_pos).image;
         self.platform.attempt_draw(
             image,
             &Rectangle {
@@ -276,7 +299,22 @@ impl<'a, P: Platform> Game<'a, P> {
         };
         self.platform
             .attempt_draw(self.cursor_image.as_ref(), &screen_pos);
+
+        self.draw_infobar();
     }
+
+    fn draw_infobar(&self) {
+        let height = self.platform.get_height() / Self::get_infobar_screen_height_ratio();
+        let size = Vector { x: height * Self::get_infobar_aspect_ration(), y: height };
+        let position = Rectangle { top_left: Vector { x: 0.into(), y: 0.into() }, size };
+        self.platform.attempt_draw(self.infobar_image.as_ref(), &position);
+        let offset_scalar = size.y / Self::get_infobar_text_offset_ratio();
+        let offset = Vector { x: offset_scalar, y: offset_scalar };
+        let max_width = size.x * Self::get_infobar_text_end();
+        let tile = self.get_tile(self.cursor_pos);
+        self.platform.draw_text(tile.name, offset, max_width);
+    }
+
 }
 
 // Main function containing all of the game logic
@@ -287,6 +325,7 @@ async fn run_internal<P: Platform>(
     // Retrieve map file
     let map_file_future = platform.get_file(MAP_FILE);
     let cursor_future = P::get_image(CURSOR_IMAGE);
+    let info_future = P::get_image(INFO_BAR_IMAGE);
     let map_file: Map = rmp_serde::decode::from_read(map_file_future.await?)?;
 
     // Create map from image paths to images
@@ -302,8 +341,12 @@ async fn run_internal<P: Platform>(
     }
 
     // Generate the map
-    let map = map_file.map.map(|i| Tile::<P> {
-        image: get_image::<P>(&image_map, &map_file.tile_types, *i as usize),
+    let map = map_file.map.map(|i| {
+        let tile = get_tile::<P>(&image_map, &map_file.tile_types, *i as usize);
+        tile.unwrap_or_else(|| {
+            P::log("Error: Invalid map file");
+            Tile{image: None, name: "ERROR"}
+        })
     });
 
     // Render the map
@@ -340,7 +383,10 @@ async fn run_internal<P: Platform>(
         cursor_pos: Vector { x: 0, y: 0 },
         map,
         cursor_image,
+        infobar_image: info_future.await,
     };
+
+    game.draw_infobar();
 
     let last_column = map_size.x - 1;
     let last_row = map_size.y - 1;

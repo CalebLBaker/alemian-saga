@@ -15,6 +15,7 @@ use wasm_bindgen::JsCast;
 use alemian_saga_core::Platform;
 
 const HOST: &str = "http://localhost/";
+const FONT: &str = "1.5rem serif";
 
 // Entry Point; Construct WebBrowser object and run game
 #[wasm_bindgen]
@@ -186,6 +187,7 @@ impl<'a> WebBrowser<'a> {
         let context = context_object
             .dyn_into::<web_sys::CanvasRenderingContext2d>()
             .ok()?;
+        context.set_font(FONT);
         let web_client = reqwest::Client::new();
 
         let mut ret = WebBrowser {
@@ -249,6 +251,10 @@ impl alemian_saga_core::Platform for WebBrowser<'_> {
         let context = &self.context;
         let _ = context
             .draw_image_with_html_image_element_and_dw_and_dh(image, left, top, width, height);
+    }
+
+    fn draw_text_primitive(&self, text: &str, x: f64, y: f64, max_width: f64) {
+        let _ = self.context.fill_text_with_max_width(text, x, y + 10.0, max_width);
     }
 
     fn get_width(&self) -> f64 {
