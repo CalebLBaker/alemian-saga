@@ -1,5 +1,5 @@
 [package]
-name = "game-lib"
+name = "alemian-saga-lib"
 version = "0.1.0"
 authors = ["CalebLBaker <calebbaker774@gmail.com>"]
 edition = "2018"

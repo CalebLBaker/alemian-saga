@@ -12,7 +12,7 @@ use futures::SinkExt;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
-use game_lib::Platform;
+use alemian_saga_lib::Platform;
 
 const HOST: &str = "http://localhost/";
 
@@ -26,7 +26,7 @@ pub extern "C" fn start() {
 async fn run_game() {
     let (sender, receiver) = mpsc::channel(8);
     if let Some(p) = WebBrowser::new(HOST, sender).await {
-        game_lib::run(p, receiver).await;
+        alemian_saga_lib::run(p, receiver).await;
     }
 }
 
@@ -62,15 +62,15 @@ impl std::future::Future for LoadedImageElement {
 }
 
 struct KeyboardEventHandler {
-    event_queue: mpsc::Sender<game_lib::Event<i32>>,
-    key_bindings: std::collections::HashMap<String, game_lib::Event<i32>>,
+    event_queue: mpsc::Sender<alemian_saga_lib::Event<i32>>,
+    key_bindings: std::collections::HashMap<String, alemian_saga_lib::Event<i32>>,
 }
 
-async fn send_async(mut event_queue: mpsc::Sender<game_lib::Event<i32>>, event: game_lib::Event<i32>) {
+async fn send_async(mut event_queue: mpsc::Sender<alemian_saga_lib::Event<i32>>, event: alemian_saga_lib::Event<i32>) {
     let _ = event_queue.feed(event).await;
 }
 
-fn send(event_queue: &mut mpsc::Sender<game_lib::Event<i32>>, event: game_lib::Event<i32>) {
+fn send(event_queue: &mut mpsc::Sender<alemian_saga_lib::Event<i32>>, event: alemian_saga_lib::Event<i32>) {
     if let Err(_) = event_queue.try_send(event) {
         wasm_bindgen_futures::spawn_local(send_async(event_queue.clone(), event));
     }
@@ -100,13 +100,13 @@ impl FnMut<(web_sys::Event,)> for KeyboardEventHandler {
 }
 
 struct MouseEventHandler {
-    event_queue: mpsc::Sender<game_lib::Event<i32>>,
+    event_queue: mpsc::Sender<alemian_saga_lib::Event<i32>>,
 }
 
 impl MouseEventHandler {
     fn handle(&mut self, args: web_sys::Event) {
         if let Some(mouse_event) = args.dyn_ref::<web_sys::MouseEvent>() {
-            send(&mut self.event_queue, game_lib::Event::MouseMove(game_lib::Vector{x: mouse_event.offset_x(), y: mouse_event.offset_y()}));
+            send(&mut self.event_queue, alemian_saga_lib::Event::MouseMove(alemian_saga_lib::Vector{x: mouse_event.offset_x(), y: mouse_event.offset_y()}));
         }
     }
 }
@@ -133,7 +133,7 @@ struct WebBrowser<'a> {
     height: f64,
     keyboard_handler: Option<wasm_bindgen::closure::Closure<dyn FnMut(web_sys::Event)>>,
     mouse_handler: Option<wasm_bindgen::closure::Closure<dyn FnMut(web_sys::Event)>>,
-    _event_queue: mpsc::Sender<game_lib::Event<i32>>,
+    _event_queue: mpsc::Sender<alemian_saga_lib::Event<i32>>,
 }
 
 // Sets the margins and padding on an HtmlElement to 0
@@ -147,7 +147,7 @@ fn clear_margin_and_padding(element: &web_sys::HtmlElement) {
 impl<'a> WebBrowser<'a> {
     async fn new(
         host: &'a str,
-        event_queue: mpsc::Sender<game_lib::Event<i32>>,
+        event_queue: mpsc::Sender<alemian_saga_lib::Event<i32>>,
     ) -> Option<WebBrowser<'a>> {
         const SIZE_MULTIPLIER: f64 = 0.995;
 
@@ -220,7 +220,7 @@ impl<'a> WebBrowser<'a> {
 
 // Implementation of the Platform trait for the WebBrowser type
 #[async_trait(?Send)]
-impl game_lib::Platform for WebBrowser<'_> {
+impl alemian_saga_lib::Platform for WebBrowser<'_> {
     type Image = web_sys::HtmlImageElement;
 
     type InputType = String;
