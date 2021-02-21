@@ -66,11 +66,17 @@ struct KeyboardEventHandler {
     key_bindings: std::collections::HashMap<String, alemian_saga_core::Event<i32>>,
 }
 
-async fn send_async(mut event_queue: mpsc::Sender<alemian_saga_core::Event<i32>>, event: alemian_saga_core::Event<i32>) {
+async fn send_async(
+    mut event_queue: mpsc::Sender<alemian_saga_core::Event<i32>>,
+    event: alemian_saga_core::Event<i32>,
+) {
     let _ = event_queue.feed(event).await;
 }
 
-fn send(event_queue: &mut mpsc::Sender<alemian_saga_core::Event<i32>>, event: alemian_saga_core::Event<i32>) {
+fn send(
+    event_queue: &mut mpsc::Sender<alemian_saga_core::Event<i32>>,
+    event: alemian_saga_core::Event<i32>,
+) {
     if let Err(_) = event_queue.try_send(event) {
         wasm_bindgen_futures::spawn_local(send_async(event_queue.clone(), event));
     }
@@ -106,7 +112,13 @@ struct MouseEventHandler {
 impl MouseEventHandler {
     fn handle(&mut self, args: web_sys::Event) {
         if let Some(mouse_event) = args.dyn_ref::<web_sys::MouseEvent>() {
-            send(&mut self.event_queue, alemian_saga_core::Event::MouseMove(alemian_saga_core::Vector{x: mouse_event.offset_x(), y: mouse_event.offset_y()}));
+            send(
+                &mut self.event_queue,
+                alemian_saga_core::Event::MouseMove(alemian_saga_core::Vector {
+                    x: mouse_event.offset_x(),
+                    y: mouse_event.offset_y(),
+                }),
+            );
         }
     }
 }

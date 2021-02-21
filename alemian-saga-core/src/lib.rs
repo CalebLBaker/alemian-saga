@@ -22,7 +22,10 @@ pub struct Vector<T> {
 
 impl<T: Scalar + num_traits::ToPrimitive> Vector<T> {
     fn lossy_cast<U: num_traits::NumCast>(self) -> Option<Vector<U>> {
-        Some(Vector{x: U::from(self.x)?, y: U::from(self.y)?})
+        Some(Vector {
+            x: U::from(self.x)?,
+            y: U::from(self.y)?,
+        })
     }
 }
 
@@ -40,7 +43,10 @@ impl<T: Scalar> Vector<T> {
         }
     }
     fn cast<U: Scalar + From<T>>(self) -> Vector<U> {
-        Vector { x: self.x.into(), y: self.y.into() }
+        Vector {
+            x: self.x.into(),
+            y: self.y.into(),
+        }
     }
 }
 
@@ -139,7 +145,9 @@ pub trait Platform {
         }
     }
 
-    async fn get_keybindings(&self) -> Option<std::collections::HashMap<Self::InputType, Event<Self::MouseDistance>>> {
+    async fn get_keybindings(
+        &self,
+    ) -> Option<std::collections::HashMap<Self::InputType, Event<Self::MouseDistance>>> {
         let mut ret = std::collections::HashMap::new();
         let bindings_file = self.get_file(KEYBINDINGS_PATH).await.ok()?;
         let bindings: Keybindings = serde_json::from_reader(bindings_file).ok()?;
@@ -183,7 +191,10 @@ pub struct Map {
 }
 
 // Entry point for starting game logic
-pub async fn run<P: Platform>(platform: P, mut event_queue: mpsc::Receiver<Event<P::MouseDistance>>) {
+pub async fn run<P: Platform>(
+    platform: P,
+    mut event_queue: mpsc::Receiver<Event<P::MouseDistance>>,
+) {
     if let Err(e) = run_internal(platform, &mut event_queue).await {
         P::log(e.msg.as_str());
     }
@@ -237,7 +248,6 @@ struct Game<'a, P: Platform> {
 }
 
 impl<'a, P: Platform> Game<'a, P> {
-
     fn get_tile_size(&self) -> Vector<P::ScreenDistance> {
         let (num_rows, num_columns) = self.map.dim();
         let map_dims = Vector {
