@@ -3,7 +3,7 @@
 #[serde(tag = "schema")]
 enum JsonContent {
     Map {
-        tileTypes: std::collections::HashMap<String, alemian_saga_lib::TileType>,
+        tileTypes: std::collections::HashMap<String, alemian_saga_core::TileType>,
         map: ndarray::Array2<String>,
     },
 }
@@ -26,7 +26,7 @@ fn main() {
                         name_to_index.insert(k, i as u32);
                         tile_types.push(v);
                     }
-                    let new_map = alemian_saga_lib::Map {
+                    let new_map = alemian_saga_core::Map {
                         tile_types: tile_types,
                         map: map.map(|x| *name_to_index.get(x).unwrap()),
                     };

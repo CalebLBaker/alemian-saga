@@ -3,6 +3,9 @@ name = "alemian-saga"
 version = "0.1.0"
 authors = ["CalebLBaker <calebbaker774@gmail.com>"]
 edition = "2018"
+description = "In-browser web sersion of Alemian Saga: The Revolt"
+repository = "https://github.com/CalebLBaker/alemian-saga"
+license = "MIT"
 
 [dependencies]
 async-trait = "0.1.42"
@@ -12,7 +15,7 @@ futures = "0.3.12"
 reqwest = "0.11.0"
 wasm-bindgen = "0.2.69"
 wasm-bindgen-futures = "0.4.19"
-alemian-saga-lib = { path = "../alemian-saga-lib" }
+alemian-saga-core = { path = "../alemian-saga-core" }
 
 [dependencies.web-sys]
 version = "0.3.46"
@@ -32,7 +35,7 @@ features = [
 
 [features]
 # Treat warnings as errors
-strict = ["alemian-saga-lib/strict"]
+strict = ["alemian-saga-core/strict"]
 
 [lib]
 crate-type = ["cdylib"]

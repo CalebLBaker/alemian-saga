@@ -1,8 +1,11 @@
 [package]
-name = "alemian-saga-lib"
+name = "alemian-saga-core"
 version = "0.1.0"
 authors = ["CalebLBaker <calebbaker774@gmail.com>"]
 edition = "2018"
+description = "Game logic for Alemian Saga: The Revolt"
+repository = "https://github.com/CalebLBaker/alemian-saga"
+license = "MIT"
 
 [dependencies]
 async-trait = "0.1.42"
