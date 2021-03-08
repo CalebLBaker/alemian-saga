@@ -14,8 +14,8 @@ const MAP_FILE: &str = "map.map";
 const CURSOR_IMAGE: &str = "cursor.png";
 const INFO_BAR_IMAGE: &str = "infobar.png";
 
-pub trait Scalar: ops::Div<Output = Self> + ops::Mul<Output = Self> + cmp::PartialOrd + Copy {}
-impl<T> Scalar for T where T: ops::Div<Output = T> + ops::Mul<Output = Self> + cmp::PartialOrd + Copy {}
+pub trait Scalar: ops::Div<Output = Self> + ops::Mul<Output = Self> + ops::Add<Output = Self> + cmp::PartialOrd + Copy {}
+impl<T> Scalar for T where T: ops::Div<Output = T> + ops::Mul<Output = Self> + ops::Add<Output = Self> + cmp::PartialOrd + Copy {}
 
 // Represents a vector
 #[derive(Clone, Copy)]
@@ -83,6 +83,8 @@ impl<T: Scalar> Rectangle<T> {
     fn height(&self) -> T {
         self.size.y
     }
+    fn bottom(&self) -> T { self.top() + self.height() }
+    fn right(&self) -> T { self.left() + self.width() }
 }
 
 // Trait used for abstracting away logic that is specific to a particular platform
@@ -312,8 +314,13 @@ impl<'a, P: Platform> Game<'a, P> {
         let old_pos = self.cursor_pos;
         self.platform.attempt_draw(self.get_tile(old_pos).image, &self.get_screen_pos(old_pos));
         self.cursor_pos = pos;
-        self.platform.attempt_draw(self.cursor_image.as_ref(), &self.get_screen_pos(pos));
+        self.draw_cursor();
         self.draw_infobar();
+    }
+
+    fn draw_cursor(&self) {
+        let cursor_pos_on_screen = self.get_screen_pos(self.cursor_pos);
+        self.platform.attempt_draw(self.cursor_image.as_ref(), &cursor_pos_on_screen);
     }
 
     fn draw_infobar(&self) {
@@ -326,6 +333,20 @@ impl<'a, P: Platform> Game<'a, P> {
         let max_width = size.x * Self::get_infobar_text_end();
         let tile = self.get_tile(self.cursor_pos);
         self.platform.draw_text(tile.name, offset, max_width);
+    }
+
+    fn redraw(&self) {
+        let top_left = self.screen.top_left;
+        let top_left_index = top_left.lossy_cast::<usize>().expect("Failed cast");
+        let bottom_right_option = (top_left + self.screen.size).lossy_cast::<usize>();
+        let bottom_right = bottom_right_option.expect("Failed cast");
+        let slice_helper = s![top_left_index.y..bottom_right.y, top_left_index.x..bottom_right.x];
+        for ((r, c), t) in self.map.slice(slice_helper).indexed_iter() {
+            let map_pos = Vector { x: c as MapDistance, y: r as MapDistance } + top_left;
+            self.platform.attempt_draw(t.image, &self.get_screen_pos(map_pos));
+        }
+        self.draw_cursor();
+        self.draw_infobar();
     }
 
 }
@@ -368,39 +389,17 @@ async fn run_internal<P: Platform>(
         x: columns as MapDistance,
         y: rows as MapDistance,
     };
-    let tile_size = platform.get_screen_size().piecewise_divide(map_size);
-    for ((r, c), t) in map.indexed_iter() {
-        let map_pos = Vector {
-            x: c as MapDistance,
-            y: r as MapDistance,
-        };
-        let map_rect = Rectangle {
-            top_left: tile_size.piecewise_multiply(map_pos),
-            size: tile_size,
-        };
-        platform.attempt_draw(t.image, &map_rect);
-    }
-
-    let cursor_image = cursor_future.await;
-    let cursor_pos = Rectangle {
-        top_left: Vector {
-            x: 0.into(),
-            y: 0.into(),
-        },
-        size: tile_size,
-    };
-    platform.attempt_draw(cursor_image.as_ref(), &cursor_pos);
 
     let mut game = Game {
         platform,
         cursor_pos: Vector { x: 0, y: 0 },
         map,
-        cursor_image,
+        cursor_image: cursor_future.await,
         infobar_image: info_future.await,
         screen: Rectangle { top_left: Vector { x: 0, y: 0 }, size: map_size },
     };
 
-    game.draw_infobar();
+    game.redraw();
 
     let last_column = map_size.x - 1;
     let last_row = map_size.y - 1;
@@ -409,54 +408,81 @@ async fn run_internal<P: Platform>(
         match e {
             Event::Right => {
                 if game.cursor_pos.x < last_column {
-                    game.move_cursor(Vector {
-                        x: game.cursor_pos.x + 1,
-                        y: game.cursor_pos.y,
-                    });
+                    if game.cursor_pos.x == game.screen.right() - 1 {
+                        game.cursor_pos.x += 1;
+                        game.screen.top_left.x += 1;
+                        game.redraw();
+                    }
+                    else {
+                        game.move_cursor(Vector {
+                            x: game.cursor_pos.x + 1,
+                            y: game.cursor_pos.y,
+                        });
+                    }
                 }
             }
             Event::Left => {
                 if game.cursor_pos.x > 0 {
-                    game.move_cursor(Vector {
-                        x: game.cursor_pos.x - 1,
-                        y: game.cursor_pos.y,
-                    });
+                    if game.cursor_pos.x == game.screen.left() {
+                        game.cursor_pos.x -= 1;
+                        game.screen.top_left.x -= 1;
+                        game.redraw();
+                    }
+                    else {
+                        game.move_cursor(Vector {
+                            x: game.cursor_pos.x - 1,
+                            y: game.cursor_pos.y,
+                        });
+                    }
                 }
             }
             Event::Up => {
                 if game.cursor_pos.y > 0 {
-                    game.move_cursor(Vector {
-                        x: game.cursor_pos.x,
-                        y: game.cursor_pos.y - 1,
-                    });
+                    if game.cursor_pos.y == game.screen.top() {
+                        game.cursor_pos.y -= 1;
+                        game.screen.top_left.y -= 1;
+                        game.redraw();
+                    }
+                    else {
+                        game.move_cursor(Vector {
+                            x: game.cursor_pos.x,
+                            y: game.cursor_pos.y - 1,
+                        });
+                    }
                 }
             }
             Event::Down => {
                 if game.cursor_pos.y < last_row {
-                    game.move_cursor(Vector {
-                        x: game.cursor_pos.x,
-                        y: game.cursor_pos.y + 1,
-                    });
+                    if game.cursor_pos.y == game.screen.bottom() - 1 {
+                        game.cursor_pos.y += 1;
+                        game.screen.top_left.y += 1;
+                        game.redraw();
+                    }
+                    else {
+                        game.move_cursor(Vector {
+                            x: game.cursor_pos.x,
+                            y: game.cursor_pos.y + 1,
+                        });
+                    }
                 }
             }
             Event::ZoomIn => {
                 let tile_size = game.get_tile_size();
                 let size = &mut game.screen.size;
+                let cursor_pos_on_screen = game.cursor_pos - game.screen.top_left;
                 if tile_size.x >= tile_size.y && size.y > 1 {
                     size.y -= 1;
+                    if cursor_pos_on_screen.y > size.y / 2 {
+                        game.screen.top_left.y += 1;
+                    }
                 }
                 if tile_size.y >= tile_size.x && size.x > 1 {
                     size.x -= 1;
+                    if cursor_pos_on_screen.x > size.x / 2 {
+                        game.screen.top_left.x += 1;
+                    }
                 }
-                let top_left = game.screen.top_left;
-                let top_left_index = top_left.lossy_cast::<usize>().expect("Failed cast");
-                let bottom_right = (top_left + *size).lossy_cast::<usize>().expect("Failed cast");
-                let slice_helper = s![top_left_index.y..bottom_right.y, top_left_index.x..bottom_right.x];
-                for ((r, c), t) in game.map.slice(slice_helper).indexed_iter() {
-                    let map_pos = Vector { x: c as MapDistance, y: r as MapDistance } + top_left;
-                    game.platform.attempt_draw(t.image, &game.get_screen_pos(map_pos));
-                }
-                game.draw_infobar();
+                game.redraw();
             }
             Event::MouseMove(mouse_pos) => {
                 if let Some(p) = game.get_map_pos(mouse_pos) {
