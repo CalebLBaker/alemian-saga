@@ -16,6 +16,7 @@ use alemian_saga_core::Platform;
 
 const HOST: &str = "http://localhost/";
 const FONT: &str = "1.5rem serif";
+const EVENT_QUEUE_CAPACITY: usize = 8;
 
 // Entry Point; Construct WebBrowser object and run game
 #[wasm_bindgen]
@@ -25,9 +26,10 @@ pub extern "C" fn start() {
 }
 
 async fn run_game() {
-    let (sender, receiver) = mpsc::channel(8);
-    if let Some(p) = WebBrowser::new(HOST, sender).await {
-        alemian_saga_core::run(p, receiver).await;
+    let (sender, receiver) = mpsc::channel(EVENT_QUEUE_CAPACITY);
+    match WebBrowser::new(HOST, sender).await {
+        Some(p) => alemian_saga_core::run(p, receiver).await,
+        None => WebBrowser::log("Failed to initialize game state"),
     }
 }
 
@@ -62,11 +64,6 @@ impl std::future::Future for LoadedImageElement {
     }
 }
 
-struct KeyboardEventHandler {
-    event_queue: mpsc::Sender<alemian_saga_core::Event<i32>>,
-    key_bindings: std::collections::HashMap<String, alemian_saga_core::Event<i32>>,
-}
-
 async fn send_async(
     mut event_queue: mpsc::Sender<alemian_saga_core::Event<i32>>,
     event: alemian_saga_core::Event<i32>,
@@ -83,60 +80,6 @@ fn send(
     }
 }
 
-impl KeyboardEventHandler {
-    fn handle(&mut self, args: web_sys::Event) {
-        if let Some(keyboard_event) = args.dyn_ref::<web_sys::KeyboardEvent>() {
-            if let Some(&game_event) = self.key_bindings.get(&keyboard_event.key()) {
-                send(&mut self.event_queue, game_event);
-            }
-        }
-    }
-}
-
-impl FnOnce<(web_sys::Event,)> for KeyboardEventHandler {
-    type Output = ();
-    extern "rust-call" fn call_once(mut self, args: (web_sys::Event,)) {
-        self.handle(args.0);
-    }
-}
-
-impl FnMut<(web_sys::Event,)> for KeyboardEventHandler {
-    extern "rust-call" fn call_mut(&mut self, args: (web_sys::Event,)) {
-        self.handle(args.0);
-    }
-}
-
-struct MouseEventHandler {
-    event_queue: mpsc::Sender<alemian_saga_core::Event<i32>>,
-}
-
-impl MouseEventHandler {
-    fn handle(&mut self, args: web_sys::Event) {
-        if let Some(mouse_event) = args.dyn_ref::<web_sys::MouseEvent>() {
-            send(
-                &mut self.event_queue,
-                alemian_saga_core::Event::MouseMove(alemian_saga_core::Vector {
-                    x: mouse_event.offset_x(),
-                    y: mouse_event.offset_y(),
-                }),
-            );
-        }
-    }
-}
-
-impl FnOnce<(web_sys::Event,)> for MouseEventHandler {
-    type Output = ();
-    extern "rust-call" fn call_once(mut self, args: (web_sys::Event,)) {
-        self.handle(args.0);
-    }
-}
-
-impl FnMut<(web_sys::Event,)> for MouseEventHandler {
-    extern "rust-call" fn call_mut(&mut self, args: (web_sys::Event,)) {
-        self.handle(args.0);
-    }
-}
-
 // Platform type that abstracts away logic that's specific to a web browser/wasm environment
 struct WebBrowser<'a> {
     context: web_sys::CanvasRenderingContext2d,
@@ -144,8 +87,8 @@ struct WebBrowser<'a> {
     host: &'a str,
     width: f64,
     height: f64,
-    keyboard_handler: Option<wasm_bindgen::closure::Closure<dyn FnMut(web_sys::Event)>>,
-    mouse_handler: Option<wasm_bindgen::closure::Closure<dyn FnMut(web_sys::Event)>>,
+    keyboard_handler: Option<gloo_events::EventListener>,
+    mouse_handler: Option<gloo_events::EventListener>,
     _event_queue: mpsc::Sender<alemian_saga_core::Event<i32>>,
 }
 
@@ -160,7 +103,7 @@ fn clear_margin_and_padding(element: &web_sys::HtmlElement) {
 impl<'a> WebBrowser<'a> {
     async fn new(
         host: &'a str,
-        event_queue: mpsc::Sender<alemian_saga_core::Event<i32>>,
+        mut event_queue: mpsc::Sender<alemian_saga_core::Event<i32>>,
     ) -> Option<WebBrowser<'a>> {
         const SIZE_MULTIPLIER: f64 = 0.995;
 
@@ -201,24 +144,28 @@ impl<'a> WebBrowser<'a> {
             _event_queue: event_queue.clone(),
         };
 
-        let key_bindings = ret.get_keybindings();
-        let keyboard_event_handler = KeyboardEventHandler {
-            event_queue: event_queue.clone(),
-            key_bindings: key_bindings.await?,
-        };
-        let keyboard_closure = Box::new(keyboard_event_handler) as Box<dyn FnMut(web_sys::Event)>;
+        let key_bindings = ret.get_keybindings().await?;
+        let mut keyboard_event_queue = event_queue.clone();
 
-        let keyboard_handler = wasm_bindgen::closure::Closure::wrap(keyboard_closure);
-        let keyboard_handler_ref = keyboard_handler.as_ref().unchecked_ref();
-        let _ = document_element.add_event_listener_with_callback("keydown", keyboard_handler_ref);
-        ret.keyboard_handler = Some(keyboard_handler);
+        ret.keyboard_handler = Some(gloo_events::EventListener::new(&document_element, "keydown", move |e| {
+            if let Some(keyboard_event) = e.dyn_ref::<web_sys::KeyboardEvent>() {
+                if let Some(&game_event) = key_bindings.get(&keyboard_event.key()) {
+                    send(&mut keyboard_event_queue, game_event);
+                }
+            }
+        }));
 
-        let mouse_event_handler = MouseEventHandler { event_queue };
-        let mouse_closure = Box::new(mouse_event_handler) as Box<dyn FnMut(web_sys::Event)>;
-        let mouse_handler = wasm_bindgen::closure::Closure::wrap(mouse_closure);
-        let mouse_handler_ref = mouse_handler.as_ref().unchecked_ref();
-        let _ = document_element.add_event_listener_with_callback("mousemove", mouse_handler_ref);
-        ret.mouse_handler = Some(mouse_handler);
+        ret.mouse_handler = Some(gloo_events::EventListener::new(&document_element, "mousemove", move |e| {
+            if let Some(mouse_event) = e.dyn_ref::<web_sys::MouseEvent>() {
+                send(
+                    &mut event_queue,
+                    alemian_saga_core::Event::MouseMove(alemian_saga_core::Vector {
+                        x: mouse_event.offset_x(),
+                        y: mouse_event.offset_y(),
+                    }),
+                );
+            }
+        }));
 
         Some(ret)
     }

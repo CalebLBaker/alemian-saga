@@ -1,6 +1,7 @@
 {
-    "up": ["k", "w", "ArrowUp"],
-    "down": ["j", "s", "ArrowDown"],
-    "left": ["h", "a", "ArrowLeft"],
-    "right": ["l", "d", "ArrowRight"]
+    "Up": ["k", "w", "ArrowUp"],
+    "Down": ["j", "s", "ArrowDown"],
+    "Left": ["h", "a", "ArrowLeft"],
+    "Right": ["l", "d", "ArrowRight"],
+    "ZoomIn": ["="]
 }

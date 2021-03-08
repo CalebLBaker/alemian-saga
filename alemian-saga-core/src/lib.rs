@@ -6,6 +6,7 @@ use std::ops;
 use async_trait::async_trait;
 use futures::channel::mpsc;
 use futures::StreamExt;
+use ndarray::prelude::*;
 use num_traits::FromPrimitive;
 
 const KEYBINDINGS_PATH: &str = "keybindings/us.json";
@@ -33,7 +34,7 @@ impl<T: Scalar + num_traits::ToPrimitive> Vector<T> {
 }
 
 impl<T: Scalar> Vector<T> {
-    fn piecewise_divde<U: Scalar + Into<T>>(self, rhs: Vector<U>) -> Vector<T> {
+    fn piecewise_divide<U: Scalar + Into<T>>(self, rhs: Vector<U>) -> Vector<T> {
         Vector {
             x: self.x / rhs.x.into(),
             y: self.y / rhs.y.into(),
@@ -51,6 +52,16 @@ impl<T: Scalar> Vector<T> {
             y: self.y.into(),
         }
     }
+}
+
+impl<T: ops::Add<Output = T>> ops::Add for Vector<T> {
+    type Output = Self;
+    fn add(self, other: Self) -> Self { Self { x: self.x + other.x, y: self.y + other.y } }
+}
+
+impl<T: ops::Sub<Output = T>> ops::Sub for Vector<T> {
+    type Output = Self;
+    fn sub(self, other: Self) -> Self { Self { x: self.x - other.x, y: self.y - other.y } }
 }
 
 // Represents a rectangle
@@ -150,24 +161,23 @@ pub trait Platform {
         }
     }
 
+    fn add_bindings(map: &mut std::collections::HashMap<Self::InputType, Event<Self::MouseDistance>>, keys: Vec<String>, event: Event<Self::MouseDistance>) {
+        for k in keys.into_iter() {
+            map.insert(Self::string_to_input(k), event);
+        }
+    }
+
     async fn get_keybindings(
-        &self,
+        &self
     ) -> Option<std::collections::HashMap<Self::InputType, Event<Self::MouseDistance>>> {
         let mut ret = std::collections::HashMap::new();
         let bindings_file = self.get_file(KEYBINDINGS_PATH).await.ok()?;
         let bindings: Keybindings = serde_json::from_reader(bindings_file).ok()?;
-        for k in bindings.right.into_iter() {
-            ret.insert(Self::string_to_input(k), Event::Right);
-        }
-        for k in bindings.left.into_iter() {
-            ret.insert(Self::string_to_input(k), Event::Left);
-        }
-        for k in bindings.up.into_iter() {
-            ret.insert(Self::string_to_input(k), Event::Up);
-        }
-        for k in bindings.down.into_iter() {
-            ret.insert(Self::string_to_input(k), Event::Down);
-        }
+        Self::add_bindings(&mut ret, bindings.Right, Event::Right);
+        Self::add_bindings(&mut ret, bindings.Left, Event::Left);
+        Self::add_bindings(&mut ret, bindings.Up, Event::Up);
+        Self::add_bindings(&mut ret, bindings.Down, Event::Down);
+        Self::add_bindings(&mut ret, bindings.ZoomIn, Event::ZoomIn);
         Some(ret)
     }
 
@@ -183,6 +193,7 @@ pub enum Event<P: Scalar> {
     Left,
     Up,
     Down,
+    ZoomIn,
     MouseMove(Vector<P>),
 }
 
@@ -211,11 +222,18 @@ pub async fn run<P: Platform>(
 }
 
 #[derive(serde::Deserialize)]
+#[allow(non_snake_case)]
 struct Keybindings {
-    right: Vec<String>,
-    left: Vec<String>,
-    up: Vec<String>,
-    down: Vec<String>,
+    #[serde(default)]
+    Right: Vec<String>,
+    #[serde(default)]
+    Left: Vec<String>,
+    #[serde(default)]
+    Up: Vec<String>,
+    #[serde(default)]
+    Down: Vec<String>,
+    #[serde(default)]
+    ZoomIn: Vec<String>,
 }
 
 // Represents a tile in the map
@@ -256,6 +274,7 @@ struct Game<'a, P: Platform> {
     map: ndarray::Array2<Tile<'a, P>>,
     cursor_image: Option<P::Image>,
     infobar_image: Option<P::Image>,
+    screen: Rectangle<MapDistance>,
 }
 
 impl<'a, P: Platform> Game<'a, P> {
@@ -268,38 +287,32 @@ impl<'a, P: Platform> Game<'a, P> {
     }
 
     fn get_tile_size(&self) -> Vector<P::ScreenDistance> {
-        let (num_rows, num_columns) = self.map.dim();
-        let map_dims = Vector {
-            x: num_columns as MapDistance,
-            y: num_rows as MapDistance,
-        };
-        self.platform.get_screen_size().piecewise_divde(map_dims)
+        self.platform.get_screen_size().piecewise_divide(self.screen.size)
     }
 
     fn get_tile(&self, pos: Vector<MapDistance>) -> &Tile<'a, P> {
         return &self.map[[pos.y as usize, pos.x as usize]]
     }
 
-    fn move_cursor(&mut self, pos: Vector<MapDistance>) {
+    fn get_screen_pos(&self, pos: Vector<MapDistance>) -> Rectangle<P::ScreenDistance> {
         let tile_size = self.get_tile_size();
-        let old_pos = self.cursor_pos;
-        let old_screen_pos = tile_size.piecewise_multiply(old_pos);
-        let image = self.get_tile(old_pos).image;
-        self.platform.attempt_draw(
-            image,
-            &Rectangle {
-                top_left: old_screen_pos,
-                size: tile_size,
-            },
-        );
-        self.cursor_pos = pos;
-        let screen_pos = Rectangle {
-            top_left: tile_size.piecewise_multiply(pos),
+        Rectangle {
+            top_left: tile_size.piecewise_multiply(pos - self.screen.top_left),
             size: tile_size,
-        };
-        self.platform
-            .attempt_draw(self.cursor_image.as_ref(), &screen_pos);
+        }
+    }
 
+    fn get_map_pos(&self, pos: Vector<P::MouseDistance>) -> Option<Vector<MapDistance>> {
+        let screen_pos = pos.cast::<P::ScreenDistance>();
+        let pos_on_screen = screen_pos.piecewise_divide(self.get_tile_size());
+        Some(pos_on_screen.lossy_cast::<MapDistance>()? + self.screen.top_left)
+    }
+                
+    fn move_cursor(&mut self, pos: Vector<MapDistance>) {
+        let old_pos = self.cursor_pos;
+        self.platform.attempt_draw(self.get_tile(old_pos).image, &self.get_screen_pos(old_pos));
+        self.cursor_pos = pos;
+        self.platform.attempt_draw(self.cursor_image.as_ref(), &self.get_screen_pos(pos));
         self.draw_infobar();
     }
 
@@ -355,7 +368,7 @@ async fn run_internal<P: Platform>(
         x: columns as MapDistance,
         y: rows as MapDistance,
     };
-    let tile_size = platform.get_screen_size().piecewise_divde(map_size);
+    let tile_size = platform.get_screen_size().piecewise_divide(map_size);
     for ((r, c), t) in map.indexed_iter() {
         let map_pos = Vector {
             x: c as MapDistance,
@@ -384,6 +397,7 @@ async fn run_internal<P: Platform>(
         map,
         cursor_image,
         infobar_image: info_future.await,
+        screen: Rectangle { top_left: Vector { x: 0, y: 0 }, size: map_size },
     };
 
     game.draw_infobar();
@@ -425,10 +439,27 @@ async fn run_internal<P: Platform>(
                     });
                 }
             }
+            Event::ZoomIn => {
+                let tile_size = game.get_tile_size();
+                let size = &mut game.screen.size;
+                if tile_size.x >= tile_size.y && size.y > 1 {
+                    size.y -= 1;
+                }
+                if tile_size.y >= tile_size.x && size.x > 1 {
+                    size.x -= 1;
+                }
+                let top_left = game.screen.top_left;
+                let top_left_index = top_left.lossy_cast::<usize>().expect("Failed cast");
+                let bottom_right = (top_left + *size).lossy_cast::<usize>().expect("Failed cast");
+                let slice_helper = s![top_left_index.y..bottom_right.y, top_left_index.x..bottom_right.x];
+                for ((r, c), t) in game.map.slice(slice_helper).indexed_iter() {
+                    let map_pos = Vector { x: c as MapDistance, y: r as MapDistance } + top_left;
+                    game.platform.attempt_draw(t.image, &game.get_screen_pos(map_pos));
+                }
+                game.draw_infobar();
+            }
             Event::MouseMove(mouse_pos) => {
-                let screen_pos = mouse_pos.cast::<P::ScreenDistance>();
-                let cursor_pos = screen_pos.piecewise_divde(game.get_tile_size());
-                if let Some(p) = cursor_pos.lossy_cast::<MapDistance>() {
+                if let Some(p) = game.get_map_pos(mouse_pos) {
                     if p.x <= last_column && p.y <= last_row {
                         game.move_cursor(p);
                     }
