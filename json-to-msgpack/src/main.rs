@@ -1,3 +1,5 @@
+use alemian_saga_core::serialization;
+
 #[allow(non_snake_case)]
 #[derive(serde::Deserialize)]
 #[serde(tag = "schema")]
@@ -29,9 +31,12 @@ fn main() {
                     let mut tile_types = vec![];
                     for (i, (k, v)) in tileTypes.into_iter().enumerate() {
                         name_to_index.insert(k.clone(), i as u32);
-                        tile_types.push(alemian_saga_core::TileType{name: k, image: v.image});
+                        tile_types.push(serialization::TileType {
+                            name: k,
+                            image: v.image,
+                        });
                     }
-                    let new_map = alemian_saga_core::Map {
+                    let new_map = serialization::Map {
                         tile_types: tile_types,
                         map: map.map(|x| *name_to_index.get(x).unwrap()),
                     };

@@ -147,25 +147,33 @@ impl<'a> WebBrowser<'a> {
         let key_bindings = ret.get_keybindings().await?;
         let mut keyboard_event_queue = event_queue.clone();
 
-        ret.keyboard_handler = Some(gloo_events::EventListener::new(&document_element, "keydown", move |e| {
-            if let Some(keyboard_event) = e.dyn_ref::<web_sys::KeyboardEvent>() {
-                if let Some(&game_event) = key_bindings.get(&keyboard_event.key()) {
-                    send(&mut keyboard_event_queue, game_event);
+        ret.keyboard_handler = Some(gloo_events::EventListener::new(
+            &document_element,
+            "keydown",
+            move |e| {
+                if let Some(keyboard_event) = e.dyn_ref::<web_sys::KeyboardEvent>() {
+                    if let Some(&game_event) = key_bindings.get(&keyboard_event.key()) {
+                        send(&mut keyboard_event_queue, game_event);
+                    }
                 }
-            }
-        }));
+            },
+        ));
 
-        ret.mouse_handler = Some(gloo_events::EventListener::new(&document_element, "mousemove", move |e| {
-            if let Some(mouse_event) = e.dyn_ref::<web_sys::MouseEvent>() {
-                send(
-                    &mut event_queue,
-                    alemian_saga_core::Event::MouseMove(alemian_saga_core::Vector {
-                        x: mouse_event.offset_x(),
-                        y: mouse_event.offset_y(),
-                    }),
-                );
-            }
-        }));
+        ret.mouse_handler = Some(gloo_events::EventListener::new(
+            &document_element,
+            "mousemove",
+            move |e| {
+                if let Some(mouse_event) = e.dyn_ref::<web_sys::MouseEvent>() {
+                    send(
+                        &mut event_queue,
+                        alemian_saga_core::Event::MouseMove(alemian_saga_core::Vector {
+                            x: mouse_event.offset_x(),
+                            y: mouse_event.offset_y(),
+                        }),
+                    );
+                }
+            },
+        ));
 
         Some(ret)
     }
@@ -198,13 +206,17 @@ impl alemian_saga_core::Platform for WebBrowser<'_> {
 
     type Duration = f64;
 
-    fn now() -> Self::Instant { js_sys::Date::now() }
+    fn now() -> Self::Instant {
+        js_sys::Date::now()
+    }
 
     fn duration_between(first: Self::Instant, second: Self::Instant) -> Self::Duration {
         second - first
     }
 
-    fn nanoseconds(ns: usize) -> Self::Duration { ns as f64 * 0.000001 }
+    fn nanoseconds(ns: usize) -> Self::Duration {
+        ns as f64 * 0.000001
+    }
 
     fn draw_primitive(&self, image: &Self::Image, left: f64, top: f64, width: f64, height: f64) {
         let context = &self.context;
@@ -213,7 +225,9 @@ impl alemian_saga_core::Platform for WebBrowser<'_> {
     }
 
     fn draw_text_primitive(&self, text: &str, x: f64, y: f64, max_width: f64) {
-        let _ = self.context.fill_text_with_max_width(text, x, y + 10.0, max_width);
+        let _ = self
+            .context
+            .fill_text_with_max_width(text, x, y + 10.0, max_width);
     }
 
     fn get_width(&self) -> f64 {
