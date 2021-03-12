@@ -110,6 +110,8 @@ pub struct Keybindings {
     pub Down: Vec<String>,
     #[serde(default)]
     pub ZoomIn: Vec<String>,
+    #[serde(default)]
+    pub ZoomOut: Vec<String>,
 }
 
 // Represents a tile in the map
@@ -400,6 +402,25 @@ pub async fn run_internal<P: Platform>(
                     size.x -= 1;
                     if cursor_pos_on_screen.x > size.x / 2 {
                         game.screen.top_left.x += 1;
+                    }
+                }
+                game.redraw();
+            }
+            Event::ZoomOut => {
+                let tile_size = game.get_tile_size();
+                let map_size = game.get_map_size();
+                let cursor_pos_on_screen = game.cursor_pos - game.screen.top_left;
+                let size = game.screen.size;
+                if size.y < map_size.y && (tile_size.y >= tile_size.x || size.x == map_size.x) {
+                    game.screen.size.y += 1;
+                    if game.screen.bottom() > map_size.y || game.screen.top() > 0 && cursor_pos_on_screen.y < game.screen.height() / 2 {
+                        game.screen.top_left.y -= 1;
+                    }
+                }
+                if size.x < map_size.x && (tile_size.x >= tile_size.y || size.y == map_size.y) {
+                    game.screen.size.x += 1;
+                    if game.screen.right() > map_size.x || game.screen.left() > 0 && cursor_pos_on_screen.x < size.x / 2 {
+                        game.screen.top_left.x -= 1;
                     }
                 }
                 game.redraw();

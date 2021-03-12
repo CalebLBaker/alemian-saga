@@ -3,5 +3,6 @@
     "Down": ["j", "s", "ArrowDown"],
     "Left": ["h", "a", "ArrowLeft"],
     "Right": ["l", "d", "ArrowRight"],
-    "ZoomIn": ["="]
+    "ZoomIn": ["="],
+    "ZoomOut": ["-"]
 }

@@ -88,8 +88,8 @@ struct WebBrowser<'a> {
     width: f64,
     height: f64,
     keyboard_handler: Option<gloo_events::EventListener>,
-    mouse_handler: Option<gloo_events::EventListener>,
-    _event_queue: mpsc::Sender<alemian_saga_core::Event<i32>>,
+    _mouse_handler: gloo_events::EventListener,
+    _scroll_handler: gloo_events::EventListener
 }
 
 // Sets the margins and padding on an HtmlElement to 0
@@ -133,6 +133,38 @@ impl<'a> WebBrowser<'a> {
         context.set_font(FONT);
         let web_client = reqwest::Client::new();
 
+        let mut mouse_event_queue = event_queue.clone();
+
+        let mouse_handler = gloo_events::EventListener::new(
+            &document_element,
+            "mousemove",
+            move |e| {
+                if let Some(mouse_event) = e.dyn_ref::<web_sys::MouseEvent>() {
+                    send(
+                        &mut mouse_event_queue,
+                        alemian_saga_core::Event::MouseMove(alemian_saga_core::Vector {
+                            x: mouse_event.offset_x(),
+                            y: mouse_event.offset_y(),
+                        }),
+                    );
+                }
+            },
+        );
+
+        let mut scroll_event_queue = event_queue.clone();
+
+        let scroll_handler = gloo_events::EventListener::new(&document_element, "wheel", move |e| {
+            if let Some(wheel_event) = e.dyn_ref::<web_sys::WheelEvent>() {
+                let delta_y = wheel_event.delta_y();
+                if delta_y < 0.0 {
+                    send(&mut scroll_event_queue, alemian_saga_core::Event::ZoomIn);
+                }
+                else if delta_y > 0.0 {
+                    send(&mut scroll_event_queue, alemian_saga_core::Event::ZoomOut);
+                }
+            }
+        });
+
         let mut ret = WebBrowser {
             context,
             web_client,
@@ -140,12 +172,11 @@ impl<'a> WebBrowser<'a> {
             width,
             height,
             keyboard_handler: None,
-            mouse_handler: None,
-            _event_queue: event_queue.clone(),
+            _mouse_handler: mouse_handler,
+            _scroll_handler: scroll_handler
         };
 
         let key_bindings = ret.get_keybindings().await?;
-        let mut keyboard_event_queue = event_queue.clone();
 
         ret.keyboard_handler = Some(gloo_events::EventListener::new(
             &document_element,
@@ -153,24 +184,8 @@ impl<'a> WebBrowser<'a> {
             move |e| {
                 if let Some(keyboard_event) = e.dyn_ref::<web_sys::KeyboardEvent>() {
                     if let Some(&game_event) = key_bindings.get(&keyboard_event.key()) {
-                        send(&mut keyboard_event_queue, game_event);
+                        send(&mut event_queue, game_event);
                     }
-                }
-            },
-        ));
-
-        ret.mouse_handler = Some(gloo_events::EventListener::new(
-            &document_element,
-            "mousemove",
-            move |e| {
-                if let Some(mouse_event) = e.dyn_ref::<web_sys::MouseEvent>() {
-                    send(
-                        &mut event_queue,
-                        alemian_saga_core::Event::MouseMove(alemian_saga_core::Vector {
-                            x: mouse_event.offset_x(),
-                            y: mouse_event.offset_y(),
-                        }),
-                    );
                 }
             },
         ));

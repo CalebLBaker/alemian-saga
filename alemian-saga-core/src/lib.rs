@@ -158,6 +158,7 @@ pub trait Platform {
         Self::add_bindings(&mut ret, bindings.Up, Event::Up);
         Self::add_bindings(&mut ret, bindings.Down, Event::Down);
         Self::add_bindings(&mut ret, bindings.ZoomIn, Event::ZoomIn);
+        Self::add_bindings(&mut ret, bindings.ZoomOut, Event::ZoomOut);
         Some(ret)
     }
 
@@ -187,6 +188,7 @@ pub enum Event<P: Scalar> {
     Up,
     Down,
     ZoomIn,
+    ZoomOut,
     MouseMove(Vector<P>),
 }
 
