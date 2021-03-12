@@ -14,8 +14,8 @@ const MAP_FILE: &str = "map.map";
 const CURSOR_IMAGE: &str = "cursor.png";
 const INFO_BAR_IMAGE: &str = "infobar.png";
 
-pub trait Scalar: ops::Div<Output = Self> + ops::Mul<Output = Self> + ops::Add<Output = Self> + cmp::PartialOrd + Copy {}
-impl<T> Scalar for T where T: ops::Div<Output = T> + ops::Mul<Output = Self> + ops::Add<Output = Self> + cmp::PartialOrd + Copy {}
+pub trait Scalar: ops::Sub<Output = Self> + ops::Div<Output = Self> + ops::Mul<Output = Self> + ops::Add<Output = Self> + cmp::PartialOrd + Copy {}
+impl<T> Scalar for T where T: ops::Sub<Output = T> + ops::Div<Output = T> + ops::Mul<Output = Self> + ops::Add<Output = Self> + cmp::PartialOrd + Copy {}
 
 // Represents a vector
 #[derive(Clone, Copy)]
@@ -64,6 +64,11 @@ impl<T: ops::Sub<Output = T>> ops::Sub for Vector<T> {
     fn sub(self, other: Self) -> Self { Self { x: self.x - other.x, y: self.y - other.y } }
 }
 
+impl<T: ops::Div<Output = T> + Copy> ops::Div<T> for Vector<T> {
+    type Output = Self;
+    fn div(self, rhs: T) -> Self::Output { Self { x: self.x / rhs, y: self.y / rhs } }
+}
+
 // Represents a rectangle
 pub struct Rectangle<T> {
     top_left: Vector<T>,
@@ -108,6 +113,12 @@ pub trait Platform {
     // Type used to represent files
     type File: std::io::Read;
 
+    // Type used to represent moments in time
+    type Instant : Copy;
+
+    // Type used to represent lengths of time
+    type Duration: cmp::PartialOrd;
+
     // Draw an image to the screen
     fn draw_primitive(
         &self,
@@ -136,6 +147,15 @@ pub trait Platform {
 
     // Log a message (typically to stdout or the equivalent)
     fn log(path: &str);
+
+    // Gets the current moment in time
+    fn now() -> Self::Instant;
+
+    // Converts an integer value in nanoseconds into a Duration object
+    fn nanoseconds(ns: usize) -> Self::Duration;
+
+    // Gets the amount of time between two moments
+    fn duration_between(fist: Self::Instant, second: Self::Instant) -> Self::Duration;
 
     fn get_screen_size(&self) -> Vector<Self::ScreenDistance> {
         Vector {
@@ -186,6 +206,7 @@ pub trait Platform {
     fn draw_text(&self, text: &str, offset: Vector<Self::ScreenDistance>, max_width: Self::ScreenDistance) {
         self.draw_text_primitive(text, offset.x, offset.y, max_width);
     }
+
 }
 
 // Type used to represent user input events
@@ -277,6 +298,7 @@ struct Game<'a, P: Platform> {
     cursor_image: Option<P::Image>,
     infobar_image: Option<P::Image>,
     screen: Rectangle<MapDistance>,
+    last_mouse_pan: P::Instant,
 }
 
 impl<'a, P: Platform> Game<'a, P> {
@@ -302,6 +324,11 @@ impl<'a, P: Platform> Game<'a, P> {
             top_left: tile_size.piecewise_multiply(pos - self.screen.top_left),
             size: tile_size,
         }
+    }
+
+    fn get_map_size(&self) -> Vector<MapDistance> {
+        let (rows, columns) = self.map.dim();
+        Vector { x: columns as MapDistance, y: rows as MapDistance }
     }
 
     fn get_map_pos(&self, pos: Vector<P::MouseDistance>) -> Option<Vector<MapDistance>> {
@@ -356,6 +383,9 @@ async fn run_internal<P: Platform>(
     platform: P,
     event_queue: &mut mpsc::Receiver<Event<P::MouseDistance>>,
 ) -> Result<(), Error> {
+
+    let last_mouse_pan = P::now();
+
     // Retrieve map file
     let map_file_future = platform.get_file(MAP_FILE);
     let cursor_future = P::get_image(CURSOR_IMAGE);
@@ -397,12 +427,14 @@ async fn run_internal<P: Platform>(
         cursor_image: cursor_future.await,
         infobar_image: info_future.await,
         screen: Rectangle { top_left: Vector { x: 0, y: 0 }, size: map_size },
+        last_mouse_pan
     };
 
     game.redraw();
 
     let last_column = map_size.x - 1;
     let last_row = map_size.y - 1;
+    let mouse_pan_delay = P::nanoseconds(100000000);
 
     while let Some(e) = event_queue.next().await {
         match e {
@@ -485,6 +517,33 @@ async fn run_internal<P: Platform>(
                 game.redraw();
             }
             Event::MouseMove(mouse_pos) => {
+                let time = P::now();
+                if P::duration_between(game.last_mouse_pan, time) > mouse_pan_delay {
+                    let screen_pos = mouse_pos.cast::<P::ScreenDistance>();
+                    let half_tile_size = game.get_tile_size() / 2.into();
+                    let near_end = game.platform.get_screen_size() - half_tile_size;
+                    let map_size = game.get_map_size();
+                    if screen_pos.y < half_tile_size.y && game.screen.top() > 0 {
+                        game.screen.top_left.y -= 1;
+                        game.redraw();
+                        game.last_mouse_pan = time;
+                    }
+                    else if screen_pos.y > near_end.y && game.screen.bottom() < map_size.y {
+                        game.screen.top_left.y += 1;
+                        game.redraw();
+                        game.last_mouse_pan = time;
+                    }
+                    else if screen_pos.x < half_tile_size.x && game.screen.left() > 0 {
+                        game.screen.top_left.x -= 1;
+                        game.redraw();
+                        game.last_mouse_pan = time;
+                    }
+                    else if screen_pos.x > near_end.x && game.screen.right() < map_size.x {
+                        game.screen.top_left.x += 1;
+                        game.redraw();
+                        game.last_mouse_pan = time;
+                    }
+                }
                 if let Some(p) = game.get_map_pos(mouse_pos) {
                     if p.x <= last_column && p.y <= last_row {
                         game.move_cursor(p);

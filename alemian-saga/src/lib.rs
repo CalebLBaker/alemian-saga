@@ -194,6 +194,18 @@ impl alemian_saga_core::Platform for WebBrowser<'_> {
 
     type ImageFuture = LoadedImageElement;
 
+    type Instant = f64;
+
+    type Duration = f64;
+
+    fn now() -> Self::Instant { js_sys::Date::now() }
+
+    fn duration_between(first: Self::Instant, second: Self::Instant) -> Self::Duration {
+        second - first
+    }
+
+    fn nanoseconds(ns: usize) -> Self::Duration { ns as f64 * 0.000001 }
+
     fn draw_primitive(&self, image: &Self::Image, left: f64, top: f64, width: f64, height: f64) {
         let context = &self.context;
         let _ = context
