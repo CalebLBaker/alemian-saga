@@ -190,6 +190,7 @@ pub enum Event<P: Scalar> {
     ZoomIn,
     ZoomOut,
     MouseMove(Vector<P>),
+    Redraw
 }
 
 // Entry point for starting game logic

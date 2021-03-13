@@ -304,7 +304,6 @@ pub async fn run_internal<P: Platform>(
         })
     });
 
-    // Render the map
     let (rows, columns) = map.dim();
     let map_size = Vector {
         x: columns as MapDistance,
@@ -456,6 +455,7 @@ pub async fn run_internal<P: Platform>(
                     }
                 }
             }
+            Event::Redraw => game.redraw()
         }
     }
     P::log("closing");

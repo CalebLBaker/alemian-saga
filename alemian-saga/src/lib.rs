@@ -82,48 +82,43 @@ fn send(
 
 // Platform type that abstracts away logic that's specific to a web browser/wasm environment
 struct WebBrowser<'a> {
+    canvas: web_sys::HtmlCanvasElement,
     context: web_sys::CanvasRenderingContext2d,
     web_client: reqwest::Client,
     host: &'a str,
-    width: f64,
-    height: f64,
     keyboard_handler: Option<gloo_events::EventListener>,
+    _resize_handler: gloo_events::EventListener,
     _mouse_handler: gloo_events::EventListener,
     _scroll_handler: gloo_events::EventListener
 }
 
-// Sets the margins and padding on an HtmlElement to 0
-fn clear_margin_and_padding(element: &web_sys::HtmlElement) {
-    let style = element.style();
-    let _ = style.set_property("margin", "0");
-    let _ = style.set_property("padding", "0");
-}
-
 // Constructor and helper functions for the WebBrowser type
 impl<'a> WebBrowser<'a> {
+
+    fn handle_resize() -> Option<()> {
+        let canvas_element = web_sys::window()?.document()?.get_element_by_id("g")?;
+        let canvas = canvas_element.dyn_ref::<web_sys::HtmlCanvasElement>()?;
+        canvas.set_width(canvas.client_width() as u32);
+        canvas.set_height(canvas.client_height() as u32);
+        Some(())
+    }
+
     async fn new(
         host: &'a str,
         mut event_queue: mpsc::Sender<alemian_saga_core::Event<i32>>,
     ) -> Option<WebBrowser<'a>> {
-        const SIZE_MULTIPLIER: f64 = 0.995;
 
         // Get handlers for various items from the Html document
         let window = web_sys::window()?;
         let document = window.document()?;
         let canvas_element = document.get_element_by_id("g")?;
-        let canvas = canvas_element.dyn_ref::<web_sys::HtmlCanvasElement>()?;
+        let canvas = canvas_element.dyn_into::<web_sys::HtmlCanvasElement>().ok()?;
         let document_element = document.document_element()?;
 
-        // Clear margin and padding to let the canvas element fill the page
-        clear_margin_and_padding(document_element.dyn_ref::<web_sys::HtmlElement>()?);
-        clear_margin_and_padding(document.body()?.dyn_ref::<web_sys::HtmlElement>()?);
-
-        // Set the canvas size (I find that the browser creates scroll bars if it fills it exactly,
-        // so I use a 0.995 multiplier to avoid the scroll bars)
-        let width = window.inner_width().ok()?.as_f64()? * SIZE_MULTIPLIER;
-        let height = window.inner_height().ok()?.as_f64()? * SIZE_MULTIPLIER;
-        canvas.set_width(width as u32);
-        canvas.set_height(height as u32);
+        // For whatever reason css doesn't populate the width and height field,
+        // so we have to do that manually
+        canvas.set_width(canvas.client_width() as u32);
+        canvas.set_height(canvas.client_height() as u32);
 
         // Create the WebBrowser object
         let context_object = canvas.get_context("2d").ok()??;
@@ -165,13 +160,20 @@ impl<'a> WebBrowser<'a> {
             }
         });
 
+        let mut resize_event_queue = event_queue.clone();
+
+        let resize_handler = gloo_events::EventListener::new(&window, "resize", move |_| {
+            Self::handle_resize();
+            send(&mut resize_event_queue, alemian_saga_core::Event::Redraw);
+        });
+
         let mut ret = WebBrowser {
+            canvas,
             context,
             web_client,
             host,
-            width,
-            height,
             keyboard_handler: None,
+            _resize_handler: resize_handler,
             _mouse_handler: mouse_handler,
             _scroll_handler: scroll_handler
         };
@@ -246,11 +248,11 @@ impl alemian_saga_core::Platform for WebBrowser<'_> {
     }
 
     fn get_width(&self) -> f64 {
-        self.width
+        self.canvas.client_width() as f64
     }
 
     fn get_height(&self) -> f64 {
-        self.height
+        self.canvas.client_height() as f64
     }
 
     fn get_image(path: &str) -> Self::ImageFuture {
