@@ -14,8 +14,11 @@ jobs:
           - run: cargo install wasm-gc
           - run: cargo install wasm-bindgen-cli
           - run: wasm-pack build --target no-modules --no-typescript --release -- --features "strict"
+            working-directory: alemian-saga
           - run: wasm-gc pkg/alemian_saga_bg.wasm
+            working-directory: alemian-saga
           - run: wasm-opt -O3 -o pkg/alemian_saga_bg.wasm pkg/alemian_saga_bg.wasm
+            working-directory: alemian-saga
           - run: cargo run
             working-directory: json-to-msgpack
 
