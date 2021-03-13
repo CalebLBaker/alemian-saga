@@ -21,9 +21,17 @@ const EVENT_QUEUE_CAPACITY: usize = 8;
 // Entry Point; Construct WebBrowser object and run game
 #[wasm_bindgen]
 pub extern "C" fn start() {
-    console_error_panic_hook::set_once();
+    enable_stack_trace();
     wasm_bindgen_futures::spawn_local(run_game());
 }
+
+#[cfg(feature = "stack-trace")]
+fn enable_stack_trace() {
+    console_error_panic_hook::set_once();
+}
+
+#[cfg(not(feature = "stack-trace"))]
+fn enable_stack_trace() {}
 
 async fn run_game() {
     let (sender, receiver) = mpsc::channel(EVENT_QUEUE_CAPACITY);
@@ -89,12 +97,11 @@ struct WebBrowser<'a> {
     keyboard_handler: Option<gloo_events::EventListener>,
     _resize_handler: gloo_events::EventListener,
     _mouse_handler: gloo_events::EventListener,
-    _scroll_handler: gloo_events::EventListener
+    _scroll_handler: gloo_events::EventListener,
 }
 
 // Constructor and helper functions for the WebBrowser type
 impl<'a> WebBrowser<'a> {
-
     fn handle_resize() -> Option<()> {
         let canvas_element = web_sys::window()?.document()?.get_element_by_id("g")?;
         let canvas = canvas_element.dyn_ref::<web_sys::HtmlCanvasElement>()?;
@@ -107,12 +114,13 @@ impl<'a> WebBrowser<'a> {
         host: &'a str,
         mut event_queue: mpsc::Sender<alemian_saga_core::Event<i32>>,
     ) -> Option<WebBrowser<'a>> {
-
         // Get handlers for various items from the Html document
         let window = web_sys::window()?;
         let document = window.document()?;
         let canvas_element = document.get_element_by_id("g")?;
-        let canvas = canvas_element.dyn_into::<web_sys::HtmlCanvasElement>().ok()?;
+        let canvas = canvas_element
+            .dyn_into::<web_sys::HtmlCanvasElement>()
+            .ok()?;
         let document_element = document.document_element()?;
 
         // For whatever reason css doesn't populate the width and height field,
@@ -130,10 +138,8 @@ impl<'a> WebBrowser<'a> {
 
         let mut mouse_event_queue = event_queue.clone();
 
-        let mouse_handler = gloo_events::EventListener::new(
-            &document_element,
-            "mousemove",
-            move |e| {
+        let mouse_handler =
+            gloo_events::EventListener::new(&document_element, "mousemove", move |e| {
                 if let Some(mouse_event) = e.dyn_ref::<web_sys::MouseEvent>() {
                     send(
                         &mut mouse_event_queue,
@@ -143,22 +149,21 @@ impl<'a> WebBrowser<'a> {
                         }),
                     );
                 }
-            },
-        );
+            });
 
         let mut scroll_event_queue = event_queue.clone();
 
-        let scroll_handler = gloo_events::EventListener::new(&document_element, "wheel", move |e| {
-            if let Some(wheel_event) = e.dyn_ref::<web_sys::WheelEvent>() {
-                let delta_y = wheel_event.delta_y();
-                if delta_y < 0.0 {
-                    send(&mut scroll_event_queue, alemian_saga_core::Event::ZoomIn);
+        let scroll_handler =
+            gloo_events::EventListener::new(&document_element, "wheel", move |e| {
+                if let Some(wheel_event) = e.dyn_ref::<web_sys::WheelEvent>() {
+                    let delta_y = wheel_event.delta_y();
+                    if delta_y < 0.0 {
+                        send(&mut scroll_event_queue, alemian_saga_core::Event::ZoomIn);
+                    } else if delta_y > 0.0 {
+                        send(&mut scroll_event_queue, alemian_saga_core::Event::ZoomOut);
+                    }
                 }
-                else if delta_y > 0.0 {
-                    send(&mut scroll_event_queue, alemian_saga_core::Event::ZoomOut);
-                }
-            }
-        });
+            });
 
         let mut resize_event_queue = event_queue.clone();
 
@@ -175,7 +180,7 @@ impl<'a> WebBrowser<'a> {
             keyboard_handler: None,
             _resize_handler: resize_handler,
             _mouse_handler: mouse_handler,
-            _scroll_handler: scroll_handler
+            _scroll_handler: scroll_handler,
         };
 
         let key_bindings = ret.get_keybindings().await?;

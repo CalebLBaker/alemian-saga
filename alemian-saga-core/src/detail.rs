@@ -267,6 +267,14 @@ impl<'a, P: Platform> Game<'a, P> {
     }
 }
 
+fn partial_ord_min<T: std::cmp::PartialOrd>(a: T, b: T) -> T {
+    if b < a {
+        b
+    } else {
+        a
+    }
+}
+
 // Main function containing all of the game logic
 pub async fn run_internal<P: Platform>(
     platform: P,
@@ -412,13 +420,18 @@ pub async fn run_internal<P: Platform>(
                 let size = game.screen.size;
                 if size.y < map_size.y && (tile_size.y >= tile_size.x || size.x == map_size.x) {
                     game.screen.size.y += 1;
-                    if game.screen.bottom() > map_size.y || game.screen.top() > 0 && cursor_pos_on_screen.y < game.screen.height() / 2 {
+                    if game.screen.bottom() > map_size.y
+                        || game.screen.top() > 0
+                            && cursor_pos_on_screen.y < game.screen.height() / 2
+                    {
                         game.screen.top_left.y -= 1;
                     }
                 }
                 if size.x < map_size.x && (tile_size.x >= tile_size.y || size.y == map_size.y) {
                     game.screen.size.x += 1;
-                    if game.screen.right() > map_size.x || game.screen.left() > 0 && cursor_pos_on_screen.x < size.x / 2 {
+                    if game.screen.right() > map_size.x
+                        || game.screen.left() > 0 && cursor_pos_on_screen.x < size.x / 2
+                    {
                         game.screen.top_left.x -= 1;
                     }
                 }
@@ -426,36 +439,48 @@ pub async fn run_internal<P: Platform>(
             }
             Event::MouseMove(mouse_pos) => {
                 let time = P::now();
-                if P::duration_between(game.last_mouse_pan, time) > mouse_pan_delay {
+                let pan = if P::duration_between(game.last_mouse_pan, time) > mouse_pan_delay {
                     let screen_pos = mouse_pos.cast::<P::ScreenDistance>();
                     let half_tile_size = game.get_tile_size() / 2.into();
-                    let near_end = game.platform.get_screen_size() - half_tile_size;
+                    let screen_size = game.platform.get_screen_size();
+                    let quarter_screen_size = screen_size / 4.into();
+                    let border_size = Vector {
+                        x: partial_ord_min(half_tile_size.x, quarter_screen_size.x),
+                        y: partial_ord_min(half_tile_size.y, quarter_screen_size.y),
+                    };
+                    let near_end = screen_size - border_size;
                     let map_size = game.get_map_size();
-                    if screen_pos.y < half_tile_size.y && game.screen.top() > 0 {
+                    if screen_pos.y < border_size.y && game.screen.top() > 0 {
                         game.screen.top_left.y -= 1;
-                        game.redraw();
-                        game.last_mouse_pan = time;
+                        true
                     } else if screen_pos.y > near_end.y && game.screen.bottom() < map_size.y {
                         game.screen.top_left.y += 1;
-                        game.redraw();
-                        game.last_mouse_pan = time;
-                    } else if screen_pos.x < half_tile_size.x && game.screen.left() > 0 {
+                        true
+                    } else if screen_pos.x < border_size.x && game.screen.left() > 0 {
                         game.screen.top_left.x -= 1;
-                        game.redraw();
-                        game.last_mouse_pan = time;
+                        true
                     } else if screen_pos.x > near_end.x && game.screen.right() < map_size.x {
                         game.screen.top_left.x += 1;
-                        game.redraw();
-                        game.last_mouse_pan = time;
+                        true
+                    } else {
+                        false
                     }
-                }
+                } else {
+                    false
+                };
                 if let Some(p) = game.get_map_pos(mouse_pos) {
                     if p.x <= last_column && p.y <= last_row {
-                        game.move_cursor(p);
+                        if pan {
+                            game.cursor_pos = p;
+                            game.last_mouse_pan = time;
+                            game.redraw();
+                        } else {
+                            game.move_cursor(p);
+                        }
                     }
                 }
             }
-            Event::Redraw => game.redraw()
+            Event::Redraw => game.redraw(),
         }
     }
     P::log("closing");

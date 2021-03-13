@@ -10,7 +10,6 @@ license = "MIT"
 [dependencies]
 async-trait = "0.1.42"
 bytes = "1.0"
-console_error_panic_hook = "0.1.6"
 futures = "0.3.12"
 gloo-events = "0.1.1"
 js-sys = "0.3.48"
@@ -18,6 +17,7 @@ reqwest = "0.11.0"
 wasm-bindgen = "0.2.69"
 wasm-bindgen-futures = "0.4.19"
 alemian-saga-core = { path = "../alemian-saga-core" }
+console_error_panic_hook = { version = "0.1.6", optional = true }
 
 [dependencies.web-sys]
 version = "0.3.46"
@@ -39,6 +39,7 @@ features = [
 [features]
 # Treat warnings as errors
 strict = ["alemian-saga-core/strict"]
+stack-trace = ["console_error_panic_hook"]
 
 [lib]
 crate-type = ["cdylib"]
