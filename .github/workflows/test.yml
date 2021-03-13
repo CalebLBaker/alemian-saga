@@ -4,18 +4,18 @@ on:
         branches:
             - master
 jobs:
-    check:
+    build:
         runs-on: ubuntu-latest
+        working-directory: alemian-saga
         steps:
           - uses: actions/checkout@v2
           - uses: actions-rs/toolchain@v1
           - run: rustup target add wasm32-unknown-unknown
           - run: cargo install wasm-gc
           - run: cargo install wasm-bindgen-cli
-            run: wasm-pack build --target no-modules --no-typescript --release -- --features "strict"
-            run: wasm-gc pkg/alemian_saga_bg.wasm
-            run: wasm-opt -O3 -o pkg/alemian_saga_bg.wasm pkg/alemian_saga_bg.wasm
-            working-directory: ./alemian-saga
+          - run: wasm-pack build --target no-modules --no-typescript --release -- --features "strict"
+          - run: wasm-gc pkg/alemian_saga_bg.wasm
+          - run: wasm-opt -O3 -o pkg/alemian_saga_bg.wasm pkg/alemian_saga_bg.wasm
           - run: cargo run
             working-directory: json-to-msgpack
 
