@@ -9,7 +9,8 @@ jobs:
         steps:
           - uses: actions/checkout@v2
           - uses: actions-rs/toolchain@v1
-            toolchain: stable
+            with:
+                toolchain: stable
           - run: rustup target add wasm32-unknown-unknown
           - run: cargo install wasm-gc
           - run: cargo install wasm-bindgen-cli
