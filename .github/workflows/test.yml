@@ -1,0 +1,29 @@
+name: test
+on:
+    pull_request:
+        branches:
+            - master
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v2
+          - uses: actions-rs/toolchain@v1
+            with:
+                toolchain: nightly
+                default: true
+                override: true
+          - run: rustup target add wasm32-unknown-unknown
+          - run: cargo install wasm-bindgen-cli
+          - run: cargo install wasm-pack
+          - run: cargo install wasm-gc
+          - run: sudo apt-get install binaryen
+          - run: wasm-pack build --target no-modules --no-typescript --release -- --features "strict"
+            working-directory: alemian-saga
+          - run: wasm-gc pkg/alemian_saga_bg.wasm
+            working-directory: alemian-saga
+          - run: wasm-opt -O3 -o pkg/alemian_saga_bg.wasm pkg/alemian_saga_bg.wasm
+            working-directory: alemian-saga
+          - run: cargo run
+            working-directory: json-to-msgpack
+
