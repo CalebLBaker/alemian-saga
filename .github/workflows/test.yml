@@ -11,6 +11,8 @@ jobs:
           - uses: actions-rs/toolchain@v1
             with:
                 toolchain: nightly
+                default: true
+                override: true
           - run: rustup target add wasm32-unknown-unknown
           - run: cargo install wasm-gc
           - run: cargo install wasm-bindgen-cli
