@@ -17,7 +17,7 @@ jobs:
           - run: cargo install wasm-bindgen-cli
           - run: cargo install wasm-pack
           - run: cargo install wasm-gc
-          - run: cargo install wasm-opt
+          - run: sudo apt-get install binaryen
           - run: wasm-pack build --target no-modules --no-typescript --release -- --features "strict"
             working-directory: alemian-saga
           - run: wasm-gc pkg/alemian_saga_bg.wasm
