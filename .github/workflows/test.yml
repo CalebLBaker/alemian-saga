@@ -28,4 +28,12 @@ jobs:
             working-directory: json-to-msgpack
           - run: cargo run
             working-directory: test
+          - uses: actions/upload-artifact@v2
+            with:
+                name: web-app
+                path: alemian-saga/pkg
+          - uses: actions/upload-artifact@v2
+            with:
+                name: generated-files
+                path: generated-files
 
