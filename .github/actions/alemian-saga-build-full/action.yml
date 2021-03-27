@@ -4,15 +4,24 @@ runs:
     using: "composite"
     steps:
       - run: rustup target add wasm32-unknown-unknown
+        shell: bash
       - run: cargo install wasm-bindgen-cli
+        shell: bash
       - run: cargo install wasm-pack
+        shell: bash
       - run: cargo install wasm-gc
+        shell: bash
       - run: sudo apt-get install binaryen
+        shell: bash
       - run: wasm-pack build --target no-modules --no-typescript --release -- --features "strict"
+        shell: bash
         working-directory: alemian-saga
       - run: wasm-gc pkg/alemian_saga_bg.wasm
+        shell: bash
         working-directory: alemian-saga
       - run: wasm-opt -O3 -o pkg/alemian_saga_bg.wasm pkg/alemian_saga_bg.wasm
+        shell: bash
         working-directory: alemian-saga
       - run: cargo run
+        shell: bash
         working-directory: dev_utils/json-to-msgpack
