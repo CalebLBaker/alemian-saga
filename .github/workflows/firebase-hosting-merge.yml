@@ -39,7 +39,7 @@ jobs:
             name: generated-files
       - run: mv generated-files/* public/
       - run: mv web-app/* public/
-      - run: LICENSE.txt public/
+      - run: mv LICENSE.txt public/
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
