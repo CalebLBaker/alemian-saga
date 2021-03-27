@@ -17,6 +17,8 @@ jobs:
             default: true
             override: true
       - uses: ./.github/actions/alemian-saga-build-full
+      - run: mkdir web-app
+      - run: mv alemian-saga/pkg/alemian_sag* web-app
       - uses: actions/upload-artifact@v2
         with:
             name: web-app
@@ -37,7 +39,11 @@ jobs:
       - uses: actions/download-artifact@v2
         with:
             name: generated-files
-      - run: mv generated-files/* public/
+      - run: ls
+      - run: ls dev_utils
+      - run: ls web-app
+      - run: ls dev_utils/generated-files
+      - run: mv dev_utils/generated-files/* public/
       - run: mv web-app/* public/
       - run: mv LICENSE.txt public/
       - uses: FirebaseExtended/action-hosting-deploy@v0
