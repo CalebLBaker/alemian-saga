@@ -12,5 +12,5 @@ async-trait = "0.1.42"
 futures = "0.3.12"
 ndarray = "0.14.0"
 rmp-serde = "0.15.1"
-alemian-saga-core = { path = "../alemian-saga-core", features = [ "strict" ] }
+alemian-saga-core = { path = "../../alemian-saga-core", features = [ "strict" ] }
 

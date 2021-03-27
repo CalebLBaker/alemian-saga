@@ -2,9 +2,14 @@
   "hosting": {
     "public": "public",
     "ignore": [
+      "alemian-sag*",
+      "dev_utils",
       "firebase.json",
       "**/.*",
-      "**/node_modules/**"
+      "json-files",
+      "LICENSE.txt",
+      "**/node_modules/**",
+      "README.md"
     ]
   }
 }

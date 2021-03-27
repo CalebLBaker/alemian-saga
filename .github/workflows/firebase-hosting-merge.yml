@@ -7,8 +7,28 @@ name: Deploy to Firebase Hosting on merge
     branches:
       - master
 jobs:
+  linux-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+            toolchain: nightly
+            default: true
+            override: true
+      - uses: ./.github/actions/alemian-saga-build-full
+      - uses: actions/upload-artifact@v2
+        with:
+            name: web-app
+            path: alemian-saga/pkg
+      - uses: actions/upload-artifact@v2
+        with:
+            name: generated-files
+            path: dev_utils/generated-files
+
   deploy:
     runs-on: ubuntu-latest
+    needs: linux-build
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2

@@ -19,7 +19,7 @@ struct TileTypeInfo {
 fn main() {
     let out_folder = std::path::Path::new("../generated-files");
     let _ = std::fs::create_dir(out_folder);
-    for f in std::fs::read_dir("../json-files").unwrap() {
+    for f in std::fs::read_dir("../../json-files").unwrap() {
         let file = f.unwrap();
         if file.file_type().unwrap().is_file() {
             let mut path = file.path();
