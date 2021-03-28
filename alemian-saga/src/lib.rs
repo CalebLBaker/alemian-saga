@@ -14,7 +14,7 @@ use wasm_bindgen::JsCast;
 
 use alemian_saga_core::Platform;
 
-const HOST: &str = "http://localhost/";
+const HOST: &str = "https://alemiansaga.web.app/";
 const FONT: &str = "1.5rem serif";
 const EVENT_QUEUE_CAPACITY: usize = 8;
 
