@@ -5,7 +5,7 @@ name: Deploy to Firebase Hosting on merge
 'on':
   push:
     branches:
-      - master
+      - develop
 jobs:
   linux-build:
     runs-on: ubuntu-latest
@@ -39,18 +39,20 @@ jobs:
       - uses: actions/download-artifact@v2
         with:
             name: generated-files
+      - run: pwd
       - run: ls
+      - run: ls alemian-saga
       - run: ls dev_utils
       - run: ls web-app
       - run: ls dev_utils/generated-files
       - run: mv dev_utils/generated-files/* public/
       - run: mv web-app/* public/
       - run: mv LICENSE.txt public/
-      - uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_ALEMIANSAGA }}'
-          channelId: live
-          projectId: alemiansaga
-        env:
-          FIREBASE_CLI_PREVIEWS: hostingchannels
+        #      - uses: FirebaseExtended/action-hosting-deploy@v0
+        #        with:
+        #          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+        #          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_ALEMIANSAGA }}'
+        #          channelId: live
+        #          projectId: alemiansaga
+        #        env:
+        #          FIREBASE_CLI_PREVIEWS: hostingchannels
