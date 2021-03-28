@@ -5,7 +5,7 @@ name: Deploy to Firebase Hosting on merge
 'on':
   push:
     branches:
-      - develop
+      - master
 jobs:
   linux-build:
     runs-on: ubuntu-latest
@@ -41,22 +41,14 @@ jobs:
         with:
             name: generated-files
             path: generated-files
-      - run: find -name "alemian_saga_bg.wasm"
-      - run: find -name "map.map"
-      - run: pwd
-      - run: ls
-      - run: ls alemian-saga
-      - run: ls dev_utils
-      - run: ls web-app
-      - run: ls generated-files
       - run: mv generated-files/* public/
       - run: mv web-app/* public/
       - run: mv LICENSE.txt public/
-        #      - uses: FirebaseExtended/action-hosting-deploy@v0
-        #        with:
-        #          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-        #          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_ALEMIANSAGA }}'
-        #          channelId: live
-        #          projectId: alemiansaga
-        #        env:
-        #          FIREBASE_CLI_PREVIEWS: hostingchannels
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_ALEMIANSAGA }}'
+          channelId: live
+          projectId: alemiansaga
+        env:
+          FIREBASE_CLI_PREVIEWS: hostingchannels
