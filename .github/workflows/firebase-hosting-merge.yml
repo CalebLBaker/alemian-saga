@@ -22,7 +22,7 @@ jobs:
       - uses: actions/upload-artifact@v2
         with:
             name: web-app
-            path: alemian-saga/pkg
+            path: web-app
       - uses: actions/upload-artifact@v2
         with:
             name: generated-files
@@ -36,9 +36,11 @@ jobs:
       - uses: actions/download-artifact@v2
         with:
             name: web-app
+            path: web-app
       - uses: actions/download-artifact@v2
         with:
             name: generated-files
+            path: generated-files
       - run: find -name "alemian_saga_bg.wasm"
       - run: find -name "map.map"
       - run: pwd
@@ -46,8 +48,8 @@ jobs:
       - run: ls alemian-saga
       - run: ls dev_utils
       - run: ls web-app
-      - run: ls dev_utils/generated-files
-      - run: mv dev_utils/generated-files/* public/
+      - run: ls generated-files
+      - run: mv generated-files/* public/
       - run: mv web-app/* public/
       - run: mv LICENSE.txt public/
         #      - uses: FirebaseExtended/action-hosting-deploy@v0
