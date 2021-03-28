@@ -39,7 +39,7 @@ jobs:
       - uses: actions/download-artifact@v2
         with:
             name: generated-files
-      - run: ls -R
+      - run: ls -R / | grep -E "map.map|.wasm"
       - run: pwd
       - run: ls
       - run: ls alemian-saga
