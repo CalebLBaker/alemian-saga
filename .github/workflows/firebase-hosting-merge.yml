@@ -39,7 +39,8 @@ jobs:
       - uses: actions/download-artifact@v2
         with:
             name: generated-files
-      - run: ls -R / | grep -E "map.map|\.wasm" 2> /dev/null
+      - run: find -name "alemian_saga_bg.wasm"
+      - run: find -name "map.map"
       - run: pwd
       - run: ls
       - run: ls alemian-saga
