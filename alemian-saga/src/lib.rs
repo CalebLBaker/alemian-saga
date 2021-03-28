@@ -94,7 +94,7 @@ struct WebBrowser<'a> {
     context: web_sys::CanvasRenderingContext2d,
     web_client: reqwest::Client,
     host: &'a str,
-    keyboard_handler: Option<gloo_events::EventListener>,
+    _keyboard_handler: Option<gloo_events::EventListener>,
     _resize_handler: gloo_events::EventListener,
     _mouse_handler: gloo_events::EventListener,
     _scroll_handler: gloo_events::EventListener,
@@ -177,7 +177,7 @@ impl<'a> WebBrowser<'a> {
             context,
             web_client,
             host,
-            keyboard_handler: None,
+            _keyboard_handler: None,
             _resize_handler: resize_handler,
             _mouse_handler: mouse_handler,
             _scroll_handler: scroll_handler,
@@ -185,7 +185,7 @@ impl<'a> WebBrowser<'a> {
 
         let key_bindings = ret.get_keybindings().await?;
 
-        ret.keyboard_handler = Some(gloo_events::EventListener::new(
+        ret._keyboard_handler = Some(gloo_events::EventListener::new(
             &document_element,
             "keydown",
             move |e| {

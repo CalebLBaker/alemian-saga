@@ -1,0 +1,19 @@
+name: test
+on:
+    pull_request:
+        branches:
+            - master
+jobs:
+    test:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v2
+          - uses: actions-rs/toolchain@v1
+            with:
+                toolchain: nightly
+                default: true
+                override: true
+          - uses: ./.github/actions/alemian-saga-build-full
+          - run: cargo run
+            working-directory: dev_utils/test
+
