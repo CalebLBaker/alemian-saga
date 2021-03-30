@@ -5,8 +5,6 @@ use num_traits::FromPrimitive;
 
 use crate::{serialization, Event, Platform, Scalar, Vector};
 
-pub const KEYBINDINGS_PATH: &str = "keybindings/us.json";
-const MAP_FILE: &str = "map.map";
 const CURSOR_IMAGE: &str = "cursor.png";
 const INFO_BAR_IMAGE: &str = "infobar.png";
 
@@ -117,7 +115,7 @@ pub struct Keybindings {
 // Represents a tile in the map
 struct Tile<'a, P: Platform> {
     image: Option<&'a P::Image>,
-    name: &'a str,
+    info: &'a serialization::TileType,
 }
 
 fn get_tile<'a, P: Platform>(
@@ -128,7 +126,7 @@ fn get_tile<'a, P: Platform>(
     let tile_type = tile_types.get(type_id)?;
     Some(Tile {
         image: image_map.get(tile_type.image.as_str()),
-        name: &tile_type.name,
+        info: &tile_type,
     })
 }
 
@@ -159,20 +157,11 @@ struct Game<'a, P: Platform> {
     last_mouse_pan: P::Instant,
 }
 
-impl<'a, P: Platform> Game<'a, P> {
-    fn get_infobar_screen_height_ratio() -> P::ScreenDistance {
-        15.into()
-    }
-    fn get_infobar_aspect_ration() -> P::ScreenDistance {
-        4.into()
-    }
-    fn get_infobar_text_offset_ratio() -> P::ScreenDistance {
-        4.into()
-    }
-    fn get_infobar_text_end() -> P::ScreenDistance {
-        P::ScreenDistance::from_f64(0.75).unwrap_or(1.into())
-    }
+fn multiply_frac<T: Scalar + From<u32>>(x: T, num: u32, den: u32) -> T {
+    x * num.into() / den.into()
+}
 
+impl<'a, P: Platform> Game<'a, P> {
     fn get_tile_size(&self) -> Vector<P::ScreenDistance> {
         self.platform
             .get_screen_size()
@@ -221,9 +210,9 @@ impl<'a, P: Platform> Game<'a, P> {
     }
 
     fn draw_infobar(&self) {
-        let height = self.platform.get_height() / Self::get_infobar_screen_height_ratio();
+        let height = self.platform.get_height() / 15.into();
         let size = Vector {
-            x: height * Self::get_infobar_aspect_ration(),
+            x: height * 4.into(),
             y: height,
         };
         let position = Rectangle {
@@ -235,14 +224,36 @@ impl<'a, P: Platform> Game<'a, P> {
         };
         self.platform
             .attempt_draw(self.infobar_image.as_ref(), &position);
-        let offset_scalar = size.y / Self::get_infobar_text_offset_ratio();
+        let offset_scalar = size.y / 4.into();
         let offset = Vector {
             x: offset_scalar,
             y: offset_scalar,
         };
-        let max_width = size.x * Self::get_infobar_text_end();
+        let max_width = size.x * P::ScreenDistance::from_f64(0.75).unwrap_or(1.into());
         let tile = self.get_tile(self.cursor_pos);
-        self.platform.draw_text(tile.name, offset, max_width);
+        let stat_y = multiply_frac(height, 5, 8);
+        let info = &tile.info;
+        self.platform
+            .draw_text(info.name.as_str(), offset, max_width);
+        let stat_width = height * 13.into() / 16.into();
+        let move_pos = Vector {
+            x: multiply_frac(height, 3, 4),
+            y: stat_y,
+        };
+        let defense_pos = Vector {
+            x: multiply_frac(height, 15, 8),
+            y: stat_y,
+        };
+        let evade_pos = Vector {
+            x: height * 3.into(),
+            y: stat_y,
+        };
+        self.platform
+            .draw_text(info.move_cost.to_string().as_str(), move_pos, stat_width);
+        self.platform
+            .draw_text(info.defense.to_string().as_str(), defense_pos, stat_width);
+        self.platform
+            .draw_text(info.evade.to_string().as_str(), evade_pos, stat_width);
     }
 
     fn redraw(&self) {
@@ -279,11 +290,21 @@ fn partial_ord_min<T: std::cmp::PartialOrd>(a: T, b: T) -> T {
 pub async fn run_internal<P: Platform>(
     platform: P,
     event_queue: &mut mpsc::Receiver<Event<P::MouseDistance>>,
+    language: &str,
 ) -> Result<(), Error> {
     let last_mouse_pan = P::now();
 
+    let error_tile = serialization::TileType {
+        image: "".to_owned(),
+        name: "ERROR".to_owned(),
+        defense: 0,
+        evade: 0,
+        move_cost: 1,
+    };
+
     // Retrieve map file
-    let map_file_future = platform.get_file(MAP_FILE);
+    let map_path = format!("{}/map.map", language);
+    let map_file_future = platform.get_file(map_path.as_str());
     let cursor_future = P::get_image(CURSOR_IMAGE);
     let info_future = P::get_image(INFO_BAR_IMAGE);
     let map_file: serialization::Map = rmp_serde::decode::from_read(map_file_future.await?)?;
@@ -307,7 +328,7 @@ pub async fn run_internal<P: Platform>(
             P::log("Error: Invalid map file");
             Tile {
                 image: None,
-                name: "ERROR",
+                info: &error_tile,
             }
         })
     });

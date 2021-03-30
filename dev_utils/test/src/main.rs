@@ -91,25 +91,37 @@ impl alemian_saga_core::Platform for TestPlatform {
         std::future::ready(Some(path.to_owned()))
     }
     async fn get_file(&self, path: &str) -> Result<Self::File, String> {
-        if path == "map.map" {
+        if path == "lang/map.map" {
             Ok(std::io::Cursor::new(
                 rmp_serde::encode::to_vec(&serialization::Map {
                     tile_types: vec![
                         serialization::TileType {
                             image: "a".to_owned(),
                             name: "a".to_owned(),
+                            defense: 0,
+                            evade: 10,
+                            move_cost: 20,
                         },
                         serialization::TileType {
                             image: "b".to_owned(),
                             name: "b".to_owned(),
+                            defense: 1,
+                            evade: 11,
+                            move_cost: 21,
                         },
                         serialization::TileType {
                             image: "c".to_owned(),
                             name: "c".to_owned(),
+                            defense: 2,
+                            evade: 12,
+                            move_cost: 22,
                         },
                         serialization::TileType {
                             image: "d".to_owned(),
                             name: "d".to_owned(),
+                            defense: 3,
+                            evade: 13,
+                            move_cost: 23,
                         },
                     ],
                     map: array![[0, 1], [2, 3]],
@@ -149,6 +161,42 @@ fn expect_infobar(sender: &mut std::sync::mpsc::Sender<Drawing>, text: &str) {
         tx: 1,
         ty: 1,
     });
+    let mut defense = "0";
+    let mut move_cost = "20";
+    let mut evade = "10";
+    match text {
+        "b" => {
+            defense = "1";
+            move_cost = "21";
+            evade = "11";
+        }
+        "c" => {
+            defense = "2";
+            move_cost = "22";
+            evade = "12";
+        }
+        "d" => {
+            defense = "3";
+            move_cost = "23";
+            evade = "13";
+        }
+        _ => {}
+    };
+    let _ = sender.send(Drawing::Text {
+        txt: move_cost.to_owned(),
+        tx: 3,
+        ty: 2,
+    });
+    let _ = sender.send(Drawing::Text {
+        txt: defense.to_owned(),
+        tx: 7,
+        ty: 2,
+    });
+    let _ = sender.send(Drawing::Text {
+        txt: evade.to_owned(),
+        tx: 12,
+        ty: 2,
+    });
 }
 
 async fn run_test() {
@@ -160,7 +208,7 @@ async fn run_test() {
     let platform = TestPlatform {
         drawings: drawing_receiver,
     };
-    let game_future = alemian_saga_core::run(platform, event_receiver);
+    let game_future = alemian_saga_core::run(platform, event_receiver, "lang");
 
     let _ = drawing_sender.send(image("a", 0, 0, tile_width, tile_height));
     let _ = drawing_sender.send(image("b", tile_width, 0, tile_width, tile_height));

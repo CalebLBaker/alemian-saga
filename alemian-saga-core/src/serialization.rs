@@ -3,6 +3,9 @@
 pub struct TileType {
     pub image: String,
     pub name: String,
+    pub defense: i32,
+    pub evade: i32,
+    pub move_cost: u32,
 }
 
 // Serialized format for maps
