@@ -1,11 +1,14 @@
 use alemian_saga_core::serialization;
+use std::collections;
+
+const LANGUAGES: [&'static str; 1] = ["english"];
 
 #[allow(non_snake_case)]
 #[derive(serde::Deserialize)]
 #[serde(tag = "schema")]
 enum JsonContent {
     Map {
-        tileTypes: std::collections::HashMap<String, TileTypeInfo>,
+        tileTypes: collections::HashMap<String, TileTypeInfo>,
         map: ndarray::Array2<String>,
     },
 }
@@ -13,6 +16,9 @@ enum JsonContent {
 #[derive(serde::Deserialize)]
 struct TileTypeInfo {
     image: String,
+    move_cost: u32,
+    defense: i32,
+    evade: i32,
 }
 
 #[allow(non_snake_case)]
@@ -27,23 +33,34 @@ fn main() {
             let json: JsonContent = serde_json::from_reader(reader).unwrap();
             match json {
                 JsonContent::Map { tileTypes, map } => {
-                    let mut name_to_index = std::collections::HashMap::new();
-                    let mut tile_types = vec![];
-                    for (i, (k, v)) in tileTypes.into_iter().enumerate() {
-                        name_to_index.insert(k.clone(), i as u32);
-                        tile_types.push(serialization::TileType {
-                            name: k,
-                            image: v.image,
-                        });
+                    let mut name_to_index = collections::HashMap::new();
+                    for l in LANGUAGES.iter() {
+                        let lang_file =
+                            std::fs::File::open(&format!("../../language/{}.json", l)).unwrap();
+                        let lang_reader = std::io::BufReader::new(lang_file);
+                        let string_map: collections::HashMap<String, String> =
+                            serde_json::from_reader(lang_reader).unwrap();
+                        let mut tile_types = vec![];
+                        for (i, (k, v)) in tileTypes.iter().enumerate() {
+                            name_to_index.insert(k.clone(), i as u32);
+                            tile_types.push(serialization::TileType {
+                                name: string_map.get(k).unwrap().clone(),
+                                image: v.image.clone(),
+                                defense: v.defense,
+                                evade: v.evade,
+                                move_cost: v.move_cost,
+                            });
+                        }
+                        let new_map = serialization::Map {
+                            tile_types: tile_types,
+                            map: map.map(|x| *name_to_index.get(x).unwrap()),
+                        };
+                        path.set_extension("map");
+                        let out_path = out_folder.join(l).join(path.file_name().unwrap());
+                        let _ = std::fs::create_dir(out_folder.join(l));
+                        let mut out_file = std::fs::File::create(out_path).unwrap();
+                        rmp_serde::encode::write(&mut out_file, &new_map).unwrap();
                     }
-                    let new_map = serialization::Map {
-                        tile_types: tile_types,
-                        map: map.map(|x| *name_to_index.get(x).unwrap()),
-                    };
-                    path.set_extension("map");
-                    let out_path = out_folder.join(path.file_name().unwrap());
-                    let mut out_file = std::fs::File::create(out_path).unwrap();
-                    rmp_serde::encode::write(&mut out_file, &new_map).unwrap();
                 }
             }
         }

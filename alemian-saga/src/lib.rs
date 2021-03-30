@@ -16,6 +16,8 @@ use alemian_saga_core::Platform;
 
 const HOST: &str = "http://localhost/";
 const FONT: &str = "1.5rem serif";
+const LANGUAGE: &str = "english";
+const LOCALE: &str = "us";
 const EVENT_QUEUE_CAPACITY: usize = 8;
 
 // Entry Point; Construct WebBrowser object and run game
@@ -36,7 +38,7 @@ fn enable_stack_trace() {}
 async fn run_game() {
     let (sender, receiver) = mpsc::channel(EVENT_QUEUE_CAPACITY);
     match WebBrowser::new(HOST, sender).await {
-        Some(p) => alemian_saga_core::run(p, receiver).await,
+        Some(p) => alemian_saga_core::run(p, receiver, LANGUAGE).await,
         None => WebBrowser::log("Failed to initialize game state"),
     }
 }
@@ -183,7 +185,7 @@ impl<'a> WebBrowser<'a> {
             _scroll_handler: scroll_handler,
         };
 
-        let key_bindings = ret.get_keybindings().await?;
+        let key_bindings = ret.get_keybindings(LOCALE).await?;
 
         ret._keyboard_handler = Some(gloo_events::EventListener::new(
             &document_element,

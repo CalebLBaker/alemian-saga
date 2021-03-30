@@ -149,9 +149,11 @@ pub trait Platform {
     // Retrieves a keybinding map describing the what keys map to what actions
     async fn get_keybindings(
         &self,
+        locale: &str,
     ) -> Option<std::collections::HashMap<Self::InputType, Event<Self::MouseDistance>>> {
         let mut ret = std::collections::HashMap::new();
-        let bindings_file = self.get_file(detail::KEYBINDINGS_PATH).await.ok()?;
+        let keybindings_path = format!("keybindings/{}.json", locale);
+        let bindings_file = self.get_file(keybindings_path.as_str()).await.ok()?;
         let bindings: detail::Keybindings = serde_json::from_reader(bindings_file).ok()?;
         Self::add_bindings(&mut ret, bindings.Right, Event::Right);
         Self::add_bindings(&mut ret, bindings.Left, Event::Left);
@@ -197,8 +199,9 @@ pub enum Event<P: Scalar> {
 pub async fn run<P: Platform>(
     platform: P,
     mut event_queue: futures::channel::mpsc::Receiver<Event<P::MouseDistance>>,
+    language: &str,
 ) {
-    if let Err(e) = detail::run_internal(platform, &mut event_queue).await {
+    if let Err(e) = detail::run_internal(platform, &mut event_queue, language).await {
         P::log(e.msg.as_str());
     }
 }
