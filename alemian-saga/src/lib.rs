@@ -109,6 +109,8 @@ impl<'a> WebBrowser<'a> {
         let canvas = canvas_element.dyn_ref::<web_sys::HtmlCanvasElement>()?;
         canvas.set_width(canvas.client_width() as u32);
         canvas.set_height(canvas.client_height() as u32);
+        let context = canvas.get_context("2d").ok()??;
+        context.dyn_into::<web_sys::CanvasRenderingContext2d>().ok()?.set_font(FONT);
         Some(())
     }
 
