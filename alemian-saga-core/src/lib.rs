@@ -176,7 +176,7 @@ pub trait Platform {
 }
 
 // Represents a vector
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct Vector<T> {
     pub x: T,
     pub y: T,

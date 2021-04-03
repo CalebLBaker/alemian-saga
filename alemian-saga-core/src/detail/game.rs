@@ -1,8 +1,6 @@
 use crate::*;
 use detail::*;
 
-pub type MapDistance = u32;
-
 // Struct for holding game state
 pub struct Game<'a, P: Platform> {
     pub platform: P,
@@ -49,8 +47,7 @@ impl<'a, P: Platform> Game<'a, P> {
 
     pub fn move_cursor(&mut self, pos: Vector<MapDistance>) {
         let old_pos = self.cursor_pos;
-        self.platform
-            .attempt_draw(self.get_tile(old_pos).image, &self.get_screen_pos(old_pos));
+        self.draw_tile(self.get_tile(old_pos), old_pos);
         self.cursor_pos = pos;
         self.draw_cursor();
         self.draw_infobar();
@@ -123,11 +120,16 @@ impl<'a, P: Platform> Game<'a, P> {
                 x: c as MapDistance,
                 y: r as MapDistance,
             } + top_left;
-            self.platform
-                .attempt_draw(t.image, &self.get_screen_pos(map_pos));
+            self.draw_tile(t, map_pos);
         }
         self.draw_cursor();
         self.draw_infobar();
+    }
+
+    fn draw_tile(&self, tile: &Tile<'a, P>, pos: Vector<MapDistance>) {
+        let screen_pos = self.get_screen_pos(pos);
+        self.platform.attempt_draw(tile.image, &screen_pos);
+        self.platform.attempt_draw(tile.unit_image, &screen_pos);
     }
 }
 

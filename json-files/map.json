@@ -19,5 +19,6 @@
             "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain",
             "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain"
         ]
-    }
+    },
+    "blue": [ { "class": "Noble", "position": { "x": 5, "y": 8 } } ]
 }

@@ -26,3 +26,7 @@ pub fn partial_ord_min<T: std::cmp::PartialOrd>(a: T, b: T) -> T {
     }
 }
 
+pub fn get_class_name(class: serialization::Class) -> &'static str {
+    match class { serialization::Class::Noble => "noble" }
+}
+

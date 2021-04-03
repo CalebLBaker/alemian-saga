@@ -10,7 +10,8 @@ mod vector;
 pub use keybindings::Keybindings;
 pub use rectangle::Rectangle;
 pub use run::run_internal;
+use crate::serialization;
 use game::Game;
-use game::MapDistance;
+use serialization::MapDistance;
 use tile::Tile;
 

@@ -4,6 +4,7 @@ use crate::*;
 pub struct Tile<'a, P: Platform> {
     pub image: Option<&'a P::Image>,
     pub info: &'a serialization::TileType,
+    pub unit_image: Option<&'a P::Image>
 }
 
 pub fn get_tile<'a, P: Platform>(
@@ -15,6 +16,7 @@ pub fn get_tile<'a, P: Platform>(
     Some(Tile {
         image: image_map.get(tile_type.image.as_str()),
         info: &tile_type,
+        unit_image: None
     })
 }
 

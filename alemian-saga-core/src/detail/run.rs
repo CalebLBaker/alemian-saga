@@ -32,7 +32,15 @@ pub async fn run_internal<P: Platform>(
         let image_str = x.image.as_str();
         (image_str, P::get_image(image_str))
     });
-    for (n, f) in images.collect::<Vec<_>>().into_iter() {
+    let tile_image_futures = images.collect::<Vec<_>>();
+    let mut unit_image_futures = std::collections::HashMap::new();
+    for u in map_file.blue.iter() {
+        unit_image_futures.entry(u.class).or_insert_with(|| {
+            P::get_image(format!("blue/{}.png", utility::get_class_name(u.class)).as_str())
+        });
+    }
+
+    for (n, f) in tile_image_futures.into_iter() {
         if let Some(image) = f.await {
             image_map.insert(n, image);
         }
@@ -46,6 +54,7 @@ pub async fn run_internal<P: Platform>(
             Tile {
                 image: None,
                 info: &error_tile,
+                unit_image: None
             }
         })
     });
@@ -55,6 +64,8 @@ pub async fn run_internal<P: Platform>(
         x: columns as MapDistance,
         y: rows as MapDistance,
     };
+
+    let mut unit_images = std::collections::HashMap::new();
 
     let mut game = Game {
         platform,
@@ -68,6 +79,18 @@ pub async fn run_internal<P: Platform>(
         },
         last_mouse_pan,
     };
+
+    for (c, f) in unit_image_futures.into_iter() {
+        if let Some(image) = f.await {
+            unit_images.insert(c, image);
+        }
+    }
+
+    for u in map_file.blue.iter() {
+        if let Some(t) = game.map.get_mut((u.position.y as usize, u.position.x as usize)) {
+            t.unit_image = unit_images.get(&u.class);
+        }
+    }
 
     game.redraw();
 
