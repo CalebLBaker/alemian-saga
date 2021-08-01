@@ -139,9 +139,9 @@ fn send(
     }
 }
 
-fn set_string_property(object: &mut js_sys::Object, name: &str, value: &str) -> bool {
-    js_sys::Reflect::set(object, &wasm_bindgen::JsValue::from_str(name), &wasm_bindgen::JsValue::from_str(value)).is_ok()
-}
+// fn set_string_property(object: &mut js_sys::Object, name: &str, value: &str) -> bool {
+//     js_sys::Reflect::set(object, &wasm_bindgen::JsValue::from_str(name), &wasm_bindgen::JsValue::from_str(value)).is_ok()
+// }
 
 struct WebError { msg: String }
 
