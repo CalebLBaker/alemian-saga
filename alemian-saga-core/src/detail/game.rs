@@ -8,8 +8,10 @@ pub struct Game<'a, P: Platform> {
     pub map: ndarray::Array2<Tile<'a, P>>,
     pub cursor_image: Option<P::Image>,
     pub infobar_image: Option<P::Image>,
+    pub unit_infobar: Option<P::Image>,
     pub screen: Rectangle<MapDistance>,
     pub last_mouse_pan: P::Instant,
+    pub unit_images: std::collections::HashMap<serialization::Class, P::Image>
 }
 
 impl<'a, P: Platform> Game<'a, P> {
@@ -72,38 +74,53 @@ impl<'a, P: Platform> Game<'a, P> {
             },
             size,
         };
-        self.platform
-            .attempt_draw(self.infobar_image.as_ref(), &position);
+
+        let tile = self.get_tile(self.cursor_pos);
+
         let offset_scalar = size.y / 4.into();
         let offset = Vector {
             x: offset_scalar,
             y: offset_scalar,
         };
         let max_width = size.x * P::ScreenDistance::from_f64(0.75).unwrap_or(1.into());
-        let tile = self.get_tile(self.cursor_pos);
         let stat_y = utility::multiply_frac(height, 5, 8);
-        let info = &tile.info;
-        self.platform
-            .draw_text(info.name.as_str(), offset, max_width);
-        let stat_width = height * 13.into() / 16.into();
-        let move_pos = Vector {
-            x: utility::multiply_frac(height, 3, 4),
-            y: stat_y,
-        };
-        let defense_pos = Vector {
-            x: utility::multiply_frac(height, 15, 8),
-            y: stat_y,
-        };
-        let evade_pos = Vector {
-            x: height * 3.into(),
-            y: stat_y,
-        };
-        self.platform
-            .draw_text(info.move_cost.to_string().as_str(), move_pos, stat_width);
-        self.platform
-            .draw_text(info.defense.to_string().as_str(), defense_pos, stat_width);
-        self.platform
-            .draw_text(info.evade.to_string().as_str(), evade_pos, stat_width);
+
+        if let Some(unit) = tile.unit {
+            self.platform.attempt_draw(self.unit_infobar.as_ref(), &position);
+            self.platform
+                .draw_text(unit.name, offset, max_width);
+            self.platform.draw_text("lv 0", Vector { x: offset_scalar, y: stat_y }, size.y);
+            let hp_x = utility::multiply_frac(size.y, 5, 2);
+            self.platform.draw_text("30/30", Vector { x: hp_x, y: stat_y }, size.y);
+        }
+        else {
+
+            let info = &tile.info;
+
+            self.platform
+                .attempt_draw(self.infobar_image.as_ref(), &position);
+            self.platform
+                .draw_text(info.name, offset, max_width);
+            let stat_width = height * 13.into() / 16.into();
+            let move_pos = Vector {
+                x: utility::multiply_frac(height, 3, 4),
+                y: stat_y,
+            };
+            let defense_pos = Vector {
+                x: utility::multiply_frac(height, 15, 8),
+                y: stat_y,
+            };
+            let evade_pos = Vector {
+                x: height * 3.into(),
+                y: stat_y,
+            };
+            self.platform
+                .draw_text(info.move_cost.to_string().as_str(), move_pos, stat_width);
+            self.platform
+                .draw_text(info.defense.to_string().as_str(), defense_pos, stat_width);
+            self.platform
+                .draw_text(info.evade.to_string().as_str(), evade_pos, stat_width);
+        }
     }
 
     pub fn redraw(&self) {
@@ -129,7 +146,9 @@ impl<'a, P: Platform> Game<'a, P> {
     fn draw_tile(&self, tile: &Tile<'a, P>, pos: Vector<MapDistance>) {
         let screen_pos = self.get_screen_pos(pos);
         self.platform.attempt_draw(tile.image, &screen_pos);
-        self.platform.attempt_draw(tile.unit_image, &screen_pos);
+        if let Some(u) = tile.unit {
+            self.platform.attempt_draw(self.unit_images.get(&u.class), &screen_pos);
+        }
     }
 }
 

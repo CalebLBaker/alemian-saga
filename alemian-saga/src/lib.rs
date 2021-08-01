@@ -6,7 +6,6 @@ use std::pin;
 use std::task;
 
 use async_trait::async_trait;
-use bytes::Buf;
 use futures::channel::mpsc;
 use futures::SinkExt;
 use wasm_bindgen::prelude::*;
@@ -19,6 +18,56 @@ const FONT: &str = "1.5rem serif";
 const LANGUAGE: &str = "english";
 const LOCALE: &str = "us";
 const EVENT_QUEUE_CAPACITY: usize = 8;
+
+// functionality imported from javascript libraries
+#[wasm_bindgen]
+extern "C" {
+    type Auth;
+    type App;
+    type Blob;
+    type CollectionReference;
+    type DocumentReference;
+    type DocumentSnapshot;
+    type Firestore;
+    type User;
+
+    #[wasm_bindgen(js_namespace = firebase)]
+    fn auth() -> Auth;
+
+    #[wasm_bindgen(js_namespace = firebase)]
+    fn firestore() -> Firestore;
+
+    #[wasm_bindgen(js_namespace = firebase)]
+    fn initializeApp(options: &js_sys::Object) -> App;
+
+    #[wasm_bindgen(method, getter)]
+    fn currentUser(this: &Auth) -> User;
+
+    #[wasm_bindgen(method)]
+    fn toUint8Array(this: &Blob) -> js_sys::Uint8Array;
+
+    #[wasm_bindgen(method)]
+    fn doc(this: &CollectionReference, documentPath: &js_sys::JsString) -> DocumentReference;
+
+    #[wasm_bindgen(method)]
+    fn collection(this: &DocumentReference, collectionPath: &js_sys::JsString) -> CollectionReference;
+
+    #[wasm_bindgen(method)]
+    fn get(this: &DocumentReference) -> js_sys::Promise;
+    
+    #[wasm_bindgen(method, getter)]
+    fn exists(this: &DocumentSnapshot) -> bool;
+
+    #[wasm_bindgen(method)]
+    fn get(this: &DocumentSnapshot, fieldPath: &js_sys::JsString) -> wasm_bindgen::JsValue;
+
+    #[wasm_bindgen(method)]
+    fn collection(this: &Firestore, collectionPath: &js_sys::JsString) -> CollectionReference;
+
+    #[wasm_bindgen(method, getter)]
+    fn uid(this: &User) -> js_sys::JsString;
+
+}
 
 // Entry Point; Construct WebBrowser object and run game
 #[wasm_bindgen]
@@ -90,12 +139,31 @@ fn send(
     }
 }
 
+fn set_string_property(object: &mut js_sys::Object, name: &str, value: &str) -> bool {
+    js_sys::Reflect::set(object, &wasm_bindgen::JsValue::from_str(name), &wasm_bindgen::JsValue::from_str(value)).is_ok()
+}
+
+struct WebError { msg: String }
+
+impl std::string::ToString for WebError {
+    fn to_string(&self) -> String { self.msg.clone() }
+}
+
+impl From<wasm_bindgen::JsValue> for WebError {
+    fn from(err: wasm_bindgen::JsValue) -> WebError {
+        WebError {
+            msg: err.as_string().unwrap_or("An error occurred in Javascript code".to_owned())
+        }
+    }
+}
+
 // Platform type that abstracts away logic that's specific to a web browser/wasm environment
 struct WebBrowser<'a> {
     canvas: web_sys::HtmlCanvasElement,
     context: web_sys::CanvasRenderingContext2d,
     web_client: reqwest::Client,
     host: &'a str,
+    // user_files: CollectionReference,
     _keyboard_handler: Option<gloo_events::EventListener>,
     _resize_handler: gloo_events::EventListener,
     _mouse_handler: gloo_events::EventListener,
@@ -118,6 +186,25 @@ impl<'a> WebBrowser<'a> {
         host: &'a str,
         mut event_queue: mpsc::Sender<alemian_saga_core::Event<i32>>,
     ) -> Option<WebBrowser<'a>> {
+
+        // let mut app_config = js_sys::Object::new();
+        // set_string_property(&mut app_config, "apiKey", "AIzaSyAZ1fhFMKy0-iKe56S63fodSoEf15UPRv8");
+        // set_string_property(&mut app_config, "authDomain", "alemiansaga.firebaseapp.com");
+        // set_string_property(&mut app_config, "projectId", "alemiansaga");
+        // set_string_property(&mut app_config, "storageBucket", "alemiansaga.appspot.com");
+        // set_string_property(&mut app_config, "messageSenderId", "258447933849");
+        // set_string_property(&mut app_config, "appId", "1:258447933849:web:4c865280ea0f65af7dd308");
+        // initializeApp(&app_config);
+        // let user = auth().currentUser();
+        // if user.is_null() {
+        //     web_sys::console::log_1(&wasm_bindgen::JsValue::from_str("Current Firebase user is null"));
+        // }
+        // else {
+        //     web_sys::console::log_1(&wasm_bindgen::JsValue::from_str("hi"));
+        //     firestore().collection(&"users".into());
+        // }
+        // let user_files = firestore().collection(&"users".into()).doc(&auth().currentUser().uid()).collection(&"files".into());
+
         // Get handlers for various items from the Html document
         let window = web_sys::window()?;
         let document = window.document()?;
@@ -181,6 +268,7 @@ impl<'a> WebBrowser<'a> {
             context,
             web_client,
             host,
+            // user_files,
             _keyboard_handler: None,
             _resize_handler: resize_handler,
             _mouse_handler: mouse_handler,
@@ -207,15 +295,18 @@ impl<'a> WebBrowser<'a> {
     async fn get_file_internal(
         &self,
         path: &str,
-    ) -> Result<bytes::buf::Reader<bytes::Bytes>, reqwest::Error> {
+    ) -> Result<bytes::Bytes, reqwest::Error> {
         let response = self.web_client.get(&(self.host.to_owned() + path)).send();
-        Ok(response.await?.bytes().await?.reader())
+        response.await?.bytes().await
     }
 }
 
 // Implementation of the Platform trait for the WebBrowser type
 #[async_trait(?Send)]
 impl alemian_saga_core::Platform for WebBrowser<'_> {
+
+    type Error = WebError;
+
     type Image = web_sys::HtmlImageElement;
 
     type InputType = String;
@@ -224,7 +315,9 @@ impl alemian_saga_core::Platform for WebBrowser<'_> {
 
     type ScreenDistance = f64;
 
-    type File = bytes::buf::Reader<bytes::Bytes>;
+    type File = bytes::Bytes;
+
+    type UserFile = Vec<u8>;
 
     type ImageFuture = LoadedImageElement;
 
@@ -281,15 +374,30 @@ impl alemian_saga_core::Platform for WebBrowser<'_> {
         }
     }
 
-    async fn get_file(&self, path: &str) -> Result<Self::File, String> {
+    async fn get_file(&self, path: &str) -> Result<Self::File, Self::Error> {
         match self.get_file_internal(path).await {
             Ok(ret) => Ok(ret),
-            Err(err) => Err(err.to_string()),
+            Err(err) => Err(WebError{ msg: err.to_string()}),
         }
     }
 
-    fn string_to_input(input: String) -> Self::InputType {
-        input
+    async fn get_user_file(&self, path: &str) -> Result<Self::UserFile, Self::Error> {
+        // let promise = self.user_files.doc(&path.into()).get();
+        // let future : wasm_bindgen_futures::JsFuture = promise.into();
+        // let doc_untyped = future.await?;
+        // let maybe_doc : Option<&DocumentSnapshot> = doc_untyped.dyn_ref();
+        // let doc = maybe_doc.ok_or(WebError { msg: "Promise yielded incorrect type".to_owned()})?;
+        // if doc.exists() {
+        //     let file : Blob = doc.get(&"contents".into()).dyn_into()?;
+        //     Ok(file.toUint8Array().to_vec())
+        // }
+        // else {
+            Err(WebError { msg: format!("Document {} does not exist", path) })
+        // }
+    }
+
+    fn string_to_input(input: &str) -> Self::InputType {
+        input.to_owned()
     }
 
     fn log(msg: &str) {

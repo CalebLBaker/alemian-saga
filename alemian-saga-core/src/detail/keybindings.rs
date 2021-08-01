@@ -1,17 +1,17 @@
 #[derive(serde::Deserialize)]
 #[allow(non_snake_case)]
-pub struct Keybindings {
+pub struct Keybindings<'a> {
+    #[serde(borrow, default)]
+    pub Right: Vec<&'a str>,
     #[serde(default)]
-    pub Right: Vec<String>,
+    pub Left: Vec<&'a str>,
     #[serde(default)]
-    pub Left: Vec<String>,
+    pub Up: Vec<&'a str>,
     #[serde(default)]
-    pub Up: Vec<String>,
+    pub Down: Vec<&'a str>,
     #[serde(default)]
-    pub Down: Vec<String>,
+    pub ZoomIn: Vec<&'a str>,
     #[serde(default)]
-    pub ZoomIn: Vec<String>,
-    #[serde(default)]
-    pub ZoomOut: Vec<String>,
+    pub ZoomOut: Vec<&'a str>,
 }
 

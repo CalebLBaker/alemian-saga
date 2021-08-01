@@ -34,6 +34,10 @@ impl<T> Scalar for T where
 // Trait used for abstracting away logic that is specific to a particular platform
 #[async_trait(?Send)]
 pub trait Platform {
+
+    // Tyep used to represent errors
+    type Error : std::string::ToString;
+
     // Type used to represent images
     type Image;
 
@@ -54,7 +58,11 @@ pub trait Platform {
     type ImageFuture: std::future::Future<Output = Option<Self::Image>>;
 
     // Type used to represent files
-    type File: std::io::Read;
+    type File: std::convert::AsRef<[u8]>;
+
+    // Type used to represent user-specific files (might be different type from more general
+    // files
+    type UserFile: std::convert::AsRef<[u8]>;
 
     // Type used to represent moments in time
     type Instant: Copy;
@@ -82,7 +90,7 @@ pub trait Platform {
     );
 
     // Converts a Sring into an InputType
-    fn string_to_input(input: String) -> Self::InputType;
+    fn string_to_input(input: &str) -> Self::InputType;
 
     // Get the width of the game screen
     fn get_width(&self) -> Self::ScreenDistance;
@@ -94,7 +102,10 @@ pub trait Platform {
     fn get_image(path: &str) -> Self::ImageFuture;
 
     // Retrieve a file from a specified file path
-    async fn get_file(&self, path: &str) -> Result<Self::File, String>;
+    async fn get_file(&self, path: &str) -> Result<Self::File, Self::Error>;
+
+    // Retrieve a user specific file
+    async fn get_user_file(&self, path: &str) -> Result<Self::UserFile, Self::Error>;
 
     // Log a message (typically to stdout or the equivalent)
     fn log(path: &str);
@@ -138,7 +149,7 @@ pub trait Platform {
     // Adds keybinds to a keybinding map
     fn add_bindings(
         map: &mut std::collections::HashMap<Self::InputType, Event<Self::MouseDistance>>,
-        keys: Vec<String>,
+        keys: Vec<& str>,
         event: Event<Self::MouseDistance>,
     ) {
         for k in keys.into_iter() {
@@ -154,7 +165,7 @@ pub trait Platform {
         let mut ret = std::collections::HashMap::new();
         let keybindings_path = format!("keybindings/{}.json", locale);
         let bindings_file = self.get_file(keybindings_path.as_str()).await.ok()?;
-        let bindings: detail::Keybindings = serde_json::from_reader(bindings_file).ok()?;
+        let bindings: detail::Keybindings = serde_json::from_slice(bindings_file.as_ref()).ok()?;
         Self::add_bindings(&mut ret, bindings.Right, Event::Right);
         Self::add_bindings(&mut ret, bindings.Left, Event::Left);
         Self::add_bindings(&mut ret, bindings.Up, Event::Up);

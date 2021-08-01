@@ -1,2 +1,42 @@
 <!DOCTYPE html>
-<html style="margin:0px;padding:0px;"><head><meta content="text/html;charset=utf-8" http-equiv="Content-Type" /></head><body style="margin:0px;padding:0px;"><script src="./alemian_saga.js"></script><script>window.addEventListener('load',async()=>{wasm_bindgen('./alemian_saga_bg.wasm').then(m=>m.start());});</script><canvas id="g" style="display:block;margin:0px;padding:0px;width:100vw;height:100vh;"></canvas></body></html>
+<html style="margin:0px;padding:0px;">
+    <head> <meta content="text/html;charset=utf-8" http-equiv="Content-Type" /> </head>
+    <body style="margin:0px;padding:0px;">
+        <script src="https://www.gstatic.com/firebasejs/8.3.3/firebase-app.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/8.3.3/firebase-auth.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/ui/4.8.0/firebase-ui-auth.js"></script>
+        <link type="text/css" rel="stylesheet" href="https://www.gstatic.com/firebasejs/ui/4.8.0/firebase-ui-auth.css" />
+        <script>
+            // Your web app's Firebase configuration
+            var firebaseConfig = {
+              apiKey: "AIzaSyAZ1fhFMKy0-iKe56S63fodSoEf15UPRv8",
+              authDomain: "alemiansaga.firebaseapp.com",
+              projectId: "alemiansaga",
+              storageBucket: "alemiansaga.appspot.com",
+              messagingSenderId: "258447933849",
+              appId: "1:258447933849:web:4c865280ea0f65af7dd308"
+            };
+            // Initialize Firebase
+            firebase.initializeApp(firebaseConfig);
+            var ui = new firebaseui.auth.AuthUI(firebase.auth());
+            ui.start('#firebaseui-auth-container', {
+                callbacks: {
+                    signInSuccessWithAuth: function(authResult, redirectUrl) { return true; },
+                    uiShown: function() {}
+                },
+                signInFlow: 'popup',
+                signInSuccessUrl: 'http://localhost/game.html',
+                signInOptions: [
+                    {
+                        provider: firebase.auth.EmailAuthProvider.PROVIDER_ID,
+                        requireDisplayName: false
+                    },
+                    firebase.auth.GoogleAuthProvider.PROVIDER_ID
+                ],
+                tosUrl: 'https://alemiansaga.web.app/LICENSE.txt',
+                privacyPolicyUrl: 'https://alemiansaga.web.app/LICENSE.txt'
+            });
+        </script>
+        <div id="firebaseui-auth-container" />
+    </body>
+</html>

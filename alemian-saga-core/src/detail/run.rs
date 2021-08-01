@@ -12,8 +12,8 @@ pub async fn run_internal<P: Platform>(
     let last_mouse_pan = P::now();
 
     let error_tile = serialization::TileType {
-        image: "".to_owned(),
-        name: "ERROR".to_owned(),
+        image: "",
+        name: "ERROR",
         defense: 0,
         evade: 0,
         move_cost: 1,
@@ -24,12 +24,14 @@ pub async fn run_internal<P: Platform>(
     let map_file_future = platform.get_file(map_path.as_str());
     let cursor_future = P::get_image(constants::CURSOR_IMAGE);
     let info_future = P::get_image(constants::INFO_BAR_IMAGE);
-    let map_file: serialization::Map = rmp_serde::decode::from_read(map_file_future.await?)?;
+    let unit_info_future = P::get_image(constants::UNIT_INFO_BAR_IMAGE);
+    let raw_map_file = map_file_future.await?;
+    let map_file: serialization::Map = rmp_serde::decode::from_read_ref(&raw_map_file)?;
 
     // Create map from image paths to images
     let mut image_map = std::collections::HashMap::new();
     let images = map_file.tile_types.iter().map(|x| {
-        let image_str = x.image.as_str();
+        let image_str = x.image;
         (image_str, P::get_image(image_str))
     });
     let tile_image_futures = images.collect::<Vec<_>>();
@@ -54,7 +56,7 @@ pub async fn run_internal<P: Platform>(
             Tile {
                 image: None,
                 info: &error_tile,
-                unit_image: None
+                unit: None
             }
         })
     });
@@ -65,30 +67,30 @@ pub async fn run_internal<P: Platform>(
         y: rows as MapDistance,
     };
 
-    let mut unit_images = std::collections::HashMap::new();
-
     let mut game = Game {
         platform,
         cursor_pos: Vector { x: 0, y: 0 },
         map,
         cursor_image: cursor_future.await,
         infobar_image: info_future.await,
+        unit_infobar: unit_info_future.await,
         screen: Rectangle {
             top_left: Vector { x: 0, y: 0 },
             size: map_size,
         },
         last_mouse_pan,
+        unit_images: std::collections::HashMap::new()
     };
 
     for (c, f) in unit_image_futures.into_iter() {
         if let Some(image) = f.await {
-            unit_images.insert(c, image);
+            game.unit_images.insert(c, image);
         }
     }
 
     for u in map_file.blue.iter() {
         if let Some(t) = game.map.get_mut((u.position.y as usize, u.position.x as usize)) {
-            t.unit_image = unit_images.get(&u.class);
+            t.unit = Some(&u)
         }
     }
 

@@ -3,7 +3,7 @@ use std::collections;
 
 const LANGUAGES: [&'static str; 1] = ["english"];
 
-#[derive(serde::Deserialize)]
+#[derive(Clone, Copy, serde::Deserialize)]
 enum JsonClass {
     Noble
 }
@@ -17,6 +17,9 @@ fn json_class_to_class(json_class: JsonClass) -> serialization::Class {
 #[derive(serde::Deserialize)]
 struct JsonUnit {
     class: JsonClass,
+    name: String,
+    level: u32,
+    hp: u32,
     position: alemian_saga_core::Vector<serialization::MapDistance>,
 }
 
@@ -52,9 +55,12 @@ fn main() {
             match json {
                 JsonContent::Map { tileTypes, map, blue } => {
                     let mut name_to_index = collections::HashMap::new();
-                    let out_blue = blue.into_iter().map(|j| {
+                    let out_blue = blue.iter().map(|j| {
                         serialization::Unit {
                             class: json_class_to_class(j.class),
+                            name: j.name.as_str(),
+                            hp: j.hp,
+                            level: j.level,
                             position: j.position
                         }
                     }).collect::<Vec<_>>();
@@ -68,8 +74,8 @@ fn main() {
                         for (i, (k, v)) in tileTypes.iter().enumerate() {
                             name_to_index.insert(k.clone(), i as u32);
                             tile_types.push(serialization::TileType {
-                                name: string_map.get(k).unwrap().clone(),
-                                image: v.image.clone(),
+                                name: string_map.get(k).unwrap().as_str(),
+                                image: v.image.as_str(),
                                 defense: v.defense,
                                 evade: v.evade,
                                 move_cost: v.move_cost,
