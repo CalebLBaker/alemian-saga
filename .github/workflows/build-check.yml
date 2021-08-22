@@ -14,6 +14,12 @@ jobs:
                 default: true
                 override: true
           - uses: ./.github/actions/alemian-saga-build-full
+          - run: rustup component add clippy
+            shell: bash
           - run: cargo clippy -- -D warnings
-
+            shell: bash
+            working-directory: alemian-saga-core
+          - run: cargo clippy -- -D warnings
+            shell: bash
+            working-directory: alemian-saga
 
