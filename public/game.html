@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html style="margin:0px;padding:0px;">
+    <head> <meta content="text/html;charset=utf-8" http-equiv="Content-Type" /> </head>
+    <body style="margin:0px;padding:0px;">
+        <script src="https://www.gstatic.com/firebasejs/8.3.3/firebase-app.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/8.3.3/firebase-auth.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/8.3.3/firebase-firestore.js"></script>
+        <script src="./alemian_saga.js"></script>
+        <script>
+            firebase.initializeApp({
+              apiKey: "AIzaSyAZ1fhFMKy0-iKe56S63fodSoEf15UPRv8",
+              authDomain: "alemiansaga.firebaseapp.com",
+              projectId: "alemiansaga",
+              storageBucket: "alemiansaga.appspot.com",
+              messagingSenderId: "258447933849",
+              appId: "1:258447933849:web:4c865280ea0f65af7dd308"
+            });
+            var db = firebase.firestore();
+            window.addEventListener('load', async() =>{
+                wasm_bindgen('./alemian_saga_bg.wasm').then(m=>m.start());
+            });
+            let user = firebase.auth().currentUser;
+            if (user == null) {
+                console.log("Current Firebase user is null");
+            }
+            var userDoc = db.collection('users').doc(firebase.auth().currentUser.uid);
+            var files = userDoc.collection('files');
+
+            function getUserFile(path) {
+                files.doc(path).get().then((doc) => {
+                    if (doc.exists) {
+                        return doc.contents.toUint8Array();
+                    } else {
+                        console.log("Document ", path, " does not exist.");
+                    }
+                }).catch((error) => { console.log("Error getting document:", error); });
+                return null;
+            }
+
+        </script>
+        <canvas id="g" style="display:block;margin:0px;padding:0px;width:100vw;height:100vh;">
+        </canvas>
+    </body>
+</html>

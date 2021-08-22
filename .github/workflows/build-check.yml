@@ -1,4 +1,4 @@
-name: test
+name: build check
 on:
     pull_request:
         branches:
@@ -14,6 +14,4 @@ jobs:
                 default: true
                 override: true
           - uses: ./.github/actions/alemian-saga-build-full
-          - run: cargo run
-            working-directory: dev_utils/test
 

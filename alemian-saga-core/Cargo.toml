@@ -1,6 +1,6 @@
 [package]
 name = "alemian-saga-core"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["CalebLBaker <calebbaker774@gmail.com>"]
 edition = "2018"
 description = "Game logic for Alemian Saga: The Revolt"
@@ -15,6 +15,7 @@ num-traits = "0.2.14"
 rmp-serde = "0.15.1"
 serde = { version = "1.0.119", features = ["derive"] }
 serde_json = "1.0"
+serde_repr = "0.1.6"
 
 [features]
 # Treat warnings as errors

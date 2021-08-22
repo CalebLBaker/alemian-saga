@@ -19,5 +19,12 @@
             "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain",
             "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain", "Plain"
         ]
-    }
+    },
+    "blue": [ {
+        "name": "Maylis",
+        "class": "Noble",
+        "level": 0,
+        "hp": 30,
+        "position": { "x": 5, "y": 8 }
+    } ]
 }
