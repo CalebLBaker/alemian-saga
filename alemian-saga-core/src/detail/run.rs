@@ -4,6 +4,9 @@ use crate::*;
 use detail::*;
 
 // Main function containing all of the game logic
+// We use collect to avoid lazy iterator evaluation so that asynchronous tasks can run in parallel
+// There is a purpose to it, but clippy doesn't realize that
+#[allow(clippy::needless_collect)]
 pub async fn run_internal<P: Platform>(
     platform: P,
     event_queue: &mut futures::channel::mpsc::Receiver<Event<P::MouseDistance>>,
@@ -90,7 +93,7 @@ pub async fn run_internal<P: Platform>(
 
     for u in map_file.blue.iter() {
         if let Some(t) = game.map.get_mut((u.position.y as usize, u.position.x as usize)) {
-            t.unit = Some(&u)
+            t.unit = Some(u)
         }
     }
 

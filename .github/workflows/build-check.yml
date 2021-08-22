@@ -14,4 +14,6 @@ jobs:
                 default: true
                 override: true
           - uses: ./.github/actions/alemian-saga-build-full
+          - run: cargo clippy -- -D warnings
+
 

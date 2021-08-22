@@ -22,7 +22,7 @@ impl<'a, P: Platform> Game<'a, P> {
     }
 
     fn get_tile(&self, pos: Vector<MapDistance>) -> &Tile<'a, P> {
-        return &self.map[[pos.y as usize, pos.x as usize]];
+        &self.map[[pos.y as usize, pos.x as usize]]
     }
 
     fn get_screen_pos(&self, pos: Vector<MapDistance>) -> Rectangle<P::ScreenDistance> {
@@ -82,7 +82,7 @@ impl<'a, P: Platform> Game<'a, P> {
             x: offset_scalar,
             y: offset_scalar,
         };
-        let max_width = size.x * P::ScreenDistance::from_f64(0.75).unwrap_or(1.into());
+        let max_width = size.x * P::ScreenDistance::from_f64(0.75).unwrap_or_else(|| 1.into());
         let stat_y = utility::multiply_frac(height, 5, 8);
 
         if let Some(unit) = tile.unit {
