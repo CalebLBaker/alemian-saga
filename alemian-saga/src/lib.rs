@@ -134,7 +134,7 @@ fn send(
     event_queue: &mut mpsc::Sender<alemian_saga_core::Event<i32>>,
     event: alemian_saga_core::Event<i32>,
 ) {
-    if let Err(_) = event_queue.try_send(event) {
+    if event_queue.try_send(event).is_err() {
         wasm_bindgen_futures::spawn_local(send_async(event_queue.clone(), event));
     }
 }
@@ -152,7 +152,7 @@ impl std::string::ToString for WebError {
 impl From<wasm_bindgen::JsValue> for WebError {
     fn from(err: wasm_bindgen::JsValue) -> WebError {
         WebError {
-            msg: err.as_string().unwrap_or("An error occurred in Javascript code".to_owned())
+            msg: err.as_string().unwrap_or_else(|| "An error occurred in Javascript code".to_owned())
         }
     }
 }

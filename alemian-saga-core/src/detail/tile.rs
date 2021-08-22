@@ -15,7 +15,7 @@ pub fn get_tile<'a, P: Platform>(
     let tile_type = tile_types.get(type_id)?;
     Some(Tile {
         image: image_map.get(tile_type.image),
-        info: &tile_type,
+        info: tile_type,
         unit: None
     })
 }
