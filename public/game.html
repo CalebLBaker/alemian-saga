@@ -15,28 +15,9 @@
               messagingSenderId: "258447933849",
               appId: "1:258447933849:web:4c865280ea0f65af7dd308"
             });
-            var db = firebase.firestore();
-            window.addEventListener('load', async() =>{
+            firebase.auth().onAuthStateChanged((user) => {
                 wasm_bindgen('./alemian_saga_bg.wasm').then(m=>m.start());
             });
-            let user = firebase.auth().currentUser;
-            if (user == null) {
-                console.log("Current Firebase user is null");
-            }
-            var userDoc = db.collection('users').doc(firebase.auth().currentUser.uid);
-            var files = userDoc.collection('files');
-
-            function getUserFile(path) {
-                files.doc(path).get().then((doc) => {
-                    if (doc.exists) {
-                        return doc.contents.toUint8Array();
-                    } else {
-                        console.log("Document ", path, " does not exist.");
-                    }
-                }).catch((error) => { console.log("Error getting document:", error); });
-                return null;
-            }
-
         </script>
         <canvas id="g" style="display:block;margin:0px;padding:0px;width:100vw;height:100vh;">
         </canvas>

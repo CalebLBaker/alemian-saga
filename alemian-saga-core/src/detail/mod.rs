@@ -7,11 +7,10 @@ mod tile;
 mod utility;
 mod vector;
 
+use crate::serialization;
+use game::Game;
 pub use keybindings::Keybindings;
 pub use rectangle::Rectangle;
 pub use run::run_internal;
-use crate::serialization;
-use game::Game;
 use serialization::MapDistance;
 use tile::Tile;
-

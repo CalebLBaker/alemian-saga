@@ -37,9 +37,6 @@ extern "C" {
     #[wasm_bindgen(js_namespace = firebase)]
     fn firestore() -> Firestore;
 
-    #[wasm_bindgen(js_namespace = firebase)]
-    fn initializeApp(options: &js_sys::Object) -> App;
-
     #[wasm_bindgen(method, getter)]
     fn currentUser(this: &Auth) -> User;
 
@@ -50,11 +47,14 @@ extern "C" {
     fn doc(this: &CollectionReference, documentPath: &js_sys::JsString) -> DocumentReference;
 
     #[wasm_bindgen(method)]
-    fn collection(this: &DocumentReference, collectionPath: &js_sys::JsString) -> CollectionReference;
+    fn collection(
+        this: &DocumentReference,
+        collectionPath: &js_sys::JsString,
+    ) -> CollectionReference;
 
     #[wasm_bindgen(method)]
     fn get(this: &DocumentReference) -> js_sys::Promise;
-    
+
     #[wasm_bindgen(method, getter)]
     fn exists(this: &DocumentSnapshot) -> bool;
 
@@ -87,8 +87,8 @@ fn enable_stack_trace() {}
 async fn run_game() {
     let (sender, receiver) = mpsc::channel(EVENT_QUEUE_CAPACITY);
     match WebBrowser::new(HOST, sender).await {
-        Some(p) => alemian_saga_core::run(p, receiver, LANGUAGE).await,
-        None => WebBrowser::log("Failed to initialize game state"),
+        Ok(p) => alemian_saga_core::run(p, receiver, LANGUAGE).await,
+        Err(e) => web_sys::console::log_1(&e),
     }
 }
 
@@ -139,20 +139,22 @@ fn send(
     }
 }
 
-// fn set_string_property(object: &mut js_sys::Object, name: &str, value: &str) -> bool {
-//     js_sys::Reflect::set(object, &wasm_bindgen::JsValue::from_str(name), &wasm_bindgen::JsValue::from_str(value)).is_ok()
-// }
-
-struct WebError { msg: String }
+struct WebError {
+    msg: String,
+}
 
 impl std::string::ToString for WebError {
-    fn to_string(&self) -> String { self.msg.clone() }
+    fn to_string(&self) -> String {
+        self.msg.clone()
+    }
 }
 
 impl From<wasm_bindgen::JsValue> for WebError {
     fn from(err: wasm_bindgen::JsValue) -> WebError {
         WebError {
-            msg: err.as_string().unwrap_or_else(|| "An error occurred in Javascript code".to_owned())
+            msg: err
+                .as_string()
+                .unwrap_or_else(|| "An error occurred in Javascript code".to_owned()),
         }
     }
 }
@@ -163,7 +165,7 @@ struct WebBrowser<'a> {
     context: web_sys::CanvasRenderingContext2d,
     web_client: reqwest::Client,
     host: &'a str,
-    // user_files: CollectionReference,
+    user_files: CollectionReference,
     _keyboard_handler: Option<gloo_events::EventListener>,
     _resize_handler: gloo_events::EventListener,
     _mouse_handler: gloo_events::EventListener,
@@ -178,41 +180,41 @@ impl<'a> WebBrowser<'a> {
         canvas.set_width(canvas.client_width() as u32);
         canvas.set_height(canvas.client_height() as u32);
         let context = canvas.get_context("2d").ok()??;
-        context.dyn_into::<web_sys::CanvasRenderingContext2d>().ok()?.set_font(FONT);
+        context
+            .dyn_into::<web_sys::CanvasRenderingContext2d>()
+            .ok()?
+            .set_font(FONT);
         Some(())
     }
 
     async fn new(
         host: &'a str,
         mut event_queue: mpsc::Sender<alemian_saga_core::Event<i32>>,
-    ) -> Option<WebBrowser<'a>> {
-
-        // let mut app_config = js_sys::Object::new();
-        // set_string_property(&mut app_config, "apiKey", "AIzaSyAZ1fhFMKy0-iKe56S63fodSoEf15UPRv8");
-        // set_string_property(&mut app_config, "authDomain", "alemiansaga.firebaseapp.com");
-        // set_string_property(&mut app_config, "projectId", "alemiansaga");
-        // set_string_property(&mut app_config, "storageBucket", "alemiansaga.appspot.com");
-        // set_string_property(&mut app_config, "messageSenderId", "258447933849");
-        // set_string_property(&mut app_config, "appId", "1:258447933849:web:4c865280ea0f65af7dd308");
-        // initializeApp(&app_config);
-        // let user = auth().currentUser();
-        // if user.is_null() {
-        //     web_sys::console::log_1(&wasm_bindgen::JsValue::from_str("Current Firebase user is null"));
-        // }
-        // else {
-        //     web_sys::console::log_1(&wasm_bindgen::JsValue::from_str("hi"));
-        //     firestore().collection(&"users".into());
-        // }
-        // let user_files = firestore().collection(&"users".into()).doc(&auth().currentUser().uid()).collection(&"files".into());
+    ) -> Result<WebBrowser<'a>, JsValue> {
+        let user = auth().currentUser();
+        if user.is_null() {
+            return Err(JsValue::from_str("Current Firebase user is null"));
+        }
+        let user_files = firestore()
+            .collection(&"users".into())
+            .doc(&user.uid())
+            .collection(&"files".into());
 
         // Get handlers for various items from the Html document
-        let window = web_sys::window()?;
-        let document = window.document()?;
-        let canvas_element = document.get_element_by_id("g")?;
+        let window = web_sys::window()
+            .ok_or_else(|| JsValue::from_str("Could not access window object."))?;
+        let document = window
+            .document()
+            .ok_or_else(|| JsValue::from_str("Could not get document element."))?;
+        let canvas_element = document
+            .get_element_by_id("g")
+            .ok_or_else(|| JsValue::from_str("Could not get game canvas element."))?;
         let canvas = canvas_element
             .dyn_into::<web_sys::HtmlCanvasElement>()
-            .ok()?;
-        let document_element = document.document_element()?;
+            .map_err(|_| JsValue::from_str("Game canvas wasn't a canvas element."))?;
+        let document_element = document
+            .document_element()
+            .ok_or_else(|| JsValue::from_str("An error occurred."))?;
 
         // For whatever reason css doesn't populate the width and height field,
         // so we have to do that manually
@@ -220,10 +222,12 @@ impl<'a> WebBrowser<'a> {
         canvas.set_height(canvas.client_height() as u32);
 
         // Create the WebBrowser object
-        let context_object = canvas.get_context("2d").ok()??;
+        let context_object = canvas
+            .get_context("2d")?
+            .ok_or_else(|| JsValue::from_str("Could not get rendering context"))?;
         let context = context_object
             .dyn_into::<web_sys::CanvasRenderingContext2d>()
-            .ok()?;
+            .map_err(|_| JsValue::from_str("Unexpected rendering context"))?;
         context.set_font(FONT);
         let web_client = reqwest::Client::new();
 
@@ -268,14 +272,17 @@ impl<'a> WebBrowser<'a> {
             context,
             web_client,
             host,
-            // user_files,
+            user_files,
             _keyboard_handler: None,
             _resize_handler: resize_handler,
             _mouse_handler: mouse_handler,
             _scroll_handler: scroll_handler,
         };
 
-        let key_bindings = ret.get_keybindings(LOCALE).await?;
+        let key_bindings = ret
+            .get_keybindings(LOCALE)
+            .await
+            .ok_or_else(|| JsValue::from_str("Failed to get keybindings"))?;
 
         ret._keyboard_handler = Some(gloo_events::EventListener::new(
             &document_element,
@@ -289,13 +296,10 @@ impl<'a> WebBrowser<'a> {
             },
         ));
 
-        Some(ret)
+        Ok(ret)
     }
 
-    async fn get_file_internal(
-        &self,
-        path: &str,
-    ) -> Result<bytes::Bytes, reqwest::Error> {
+    async fn get_file_internal(&self, path: &str) -> Result<bytes::Bytes, reqwest::Error> {
         let response = self.web_client.get(&(self.host.to_owned() + path)).send();
         response.await?.bytes().await
     }
@@ -304,7 +308,6 @@ impl<'a> WebBrowser<'a> {
 // Implementation of the Platform trait for the WebBrowser type
 #[async_trait(?Send)]
 impl alemian_saga_core::Platform for WebBrowser<'_> {
-
     type Error = WebError;
 
     type Image = web_sys::HtmlImageElement;
@@ -377,23 +380,28 @@ impl alemian_saga_core::Platform for WebBrowser<'_> {
     async fn get_file(&self, path: &str) -> Result<Self::File, Self::Error> {
         match self.get_file_internal(path).await {
             Ok(ret) => Ok(ret),
-            Err(err) => Err(WebError{ msg: err.to_string()}),
+            Err(err) => Err(WebError {
+                msg: err.to_string(),
+            }),
         }
     }
 
     async fn get_user_file(&self, path: &str) -> Result<Self::UserFile, Self::Error> {
-        // let promise = self.user_files.doc(&path.into()).get();
-        // let future : wasm_bindgen_futures::JsFuture = promise.into();
-        // let doc_untyped = future.await?;
-        // let maybe_doc : Option<&DocumentSnapshot> = doc_untyped.dyn_ref();
-        // let doc = maybe_doc.ok_or(WebError { msg: "Promise yielded incorrect type".to_owned()})?;
-        // if doc.exists() {
-        //     let file : Blob = doc.get(&"contents".into()).dyn_into()?;
-        //     Ok(file.toUint8Array().to_vec())
-        // }
-        // else {
-            Err(WebError { msg: format!("Document {} does not exist", path) })
-        // }
+        let promise = self.user_files.doc(&path.into()).get();
+        let future: wasm_bindgen_futures::JsFuture = promise.into();
+        let doc_untyped = future.await?;
+        let maybe_doc: Option<&DocumentSnapshot> = doc_untyped.dyn_ref();
+        let doc = maybe_doc.ok_or(WebError {
+            msg: "Promise yielded incorrect type".to_owned(),
+        })?;
+        if doc.exists() {
+            let file: Blob = doc.get(&"contents".into()).dyn_into()?;
+            Ok(file.toUint8Array().to_vec())
+        } else {
+            Err(WebError {
+                msg: format!("Document {} does not exist", path),
+            })
+        }
     }
 
     fn string_to_input(input: &str) -> Self::InputType {

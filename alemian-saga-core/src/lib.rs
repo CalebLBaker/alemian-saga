@@ -34,9 +34,8 @@ impl<T> Scalar for T where
 // Trait used for abstracting away logic that is specific to a particular platform
 #[async_trait(?Send)]
 pub trait Platform {
-
     // Tyep used to represent errors
-    type Error : std::string::ToString;
+    type Error: std::string::ToString;
 
     // Type used to represent images
     type Image;
@@ -149,7 +148,7 @@ pub trait Platform {
     // Adds keybinds to a keybinding map
     fn add_bindings(
         map: &mut std::collections::HashMap<Self::InputType, Event<Self::MouseDistance>>,
-        keys: Vec<& str>,
+        keys: Vec<&str>,
         event: Event<Self::MouseDistance>,
     ) {
         for k in keys.into_iter() {

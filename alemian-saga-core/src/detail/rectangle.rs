@@ -26,4 +26,3 @@ impl<T: Scalar> Rectangle<T> {
         self.left() + self.width()
     }
 }
-
