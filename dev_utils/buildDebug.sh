@@ -4,7 +4,7 @@ cd alemian-saga
 ./buildDebug.sh
 cd ../dev_utils/json-to-msgpack
 cargo run
-if [[ $# -eq 0 ]] ; then
+if [ $# -eq 0 ] ; then
     exit 0
 fi
 cd ../..
