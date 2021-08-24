@@ -47,11 +47,14 @@ extern "C" {
     fn doc(this: &CollectionReference, documentPath: &js_sys::JsString) -> DocumentReference;
 
     #[wasm_bindgen(method)]
-    fn collection(this: &DocumentReference, collectionPath: &js_sys::JsString) -> CollectionReference;
+    fn collection(
+        this: &DocumentReference,
+        collectionPath: &js_sys::JsString,
+    ) -> CollectionReference;
 
     #[wasm_bindgen(method)]
     fn get(this: &DocumentReference) -> js_sys::Promise;
-    
+
     #[wasm_bindgen(method, getter)]
     fn exists(this: &DocumentSnapshot) -> bool;
 
@@ -85,7 +88,7 @@ async fn run_game() {
     let (sender, receiver) = mpsc::channel(EVENT_QUEUE_CAPACITY);
     match WebBrowser::new(HOST, sender).await {
         Ok(p) => alemian_saga_core::run(p, receiver, LANGUAGE).await,
-        Err(e) => web_sys::console::log_1(&e)
+        Err(e) => web_sys::console::log_1(&e),
     }
 }
 
@@ -136,16 +139,22 @@ fn send(
     }
 }
 
-struct WebError { msg: String }
+struct WebError {
+    msg: String,
+}
 
 impl std::string::ToString for WebError {
-    fn to_string(&self) -> String { self.msg.clone() }
+    fn to_string(&self) -> String {
+        self.msg.clone()
+    }
 }
 
 impl From<wasm_bindgen::JsValue> for WebError {
     fn from(err: wasm_bindgen::JsValue) -> WebError {
         WebError {
-            msg: err.as_string().unwrap_or_else(|| "An error occurred in Javascript code".to_owned())
+            msg: err
+                .as_string()
+                .unwrap_or_else(|| "An error occurred in Javascript code".to_owned()),
         }
     }
 }
@@ -171,29 +180,41 @@ impl<'a> WebBrowser<'a> {
         canvas.set_width(canvas.client_width() as u32);
         canvas.set_height(canvas.client_height() as u32);
         let context = canvas.get_context("2d").ok()??;
-        context.dyn_into::<web_sys::CanvasRenderingContext2d>().ok()?.set_font(FONT);
+        context
+            .dyn_into::<web_sys::CanvasRenderingContext2d>()
+            .ok()?
+            .set_font(FONT);
         Some(())
     }
 
     async fn new(
         host: &'a str,
-        mut event_queue: mpsc::Sender<alemian_saga_core::Event<i32>>
+        mut event_queue: mpsc::Sender<alemian_saga_core::Event<i32>>,
     ) -> Result<WebBrowser<'a>, JsValue> {
-
         let user = auth().currentUser();
         if user.is_null() {
             return Err(JsValue::from_str("Current Firebase user is null"));
         }
-        let user_files = firestore().collection(&"users".into()).doc(&user.uid()).collection(&"files".into());
+        let user_files = firestore()
+            .collection(&"users".into())
+            .doc(&user.uid())
+            .collection(&"files".into());
 
         // Get handlers for various items from the Html document
-        let window = web_sys::window().ok_or_else(|| JsValue::from_str("Could not access window object."))?;
-        let document = window.document().ok_or_else(|| JsValue::from_str("Could not get document element."))?;
-        let canvas_element = document.get_element_by_id("g").ok_or_else(|| JsValue::from_str("Could not get game canvas element."))?;
+        let window = web_sys::window()
+            .ok_or_else(|| JsValue::from_str("Could not access window object."))?;
+        let document = window
+            .document()
+            .ok_or_else(|| JsValue::from_str("Could not get document element."))?;
+        let canvas_element = document
+            .get_element_by_id("g")
+            .ok_or_else(|| JsValue::from_str("Could not get game canvas element."))?;
         let canvas = canvas_element
             .dyn_into::<web_sys::HtmlCanvasElement>()
             .map_err(|_| JsValue::from_str("Game canvas wasn't a canvas element."))?;
-        let document_element = document.document_element().ok_or_else(|| JsValue::from_str("An error occurred."))?;
+        let document_element = document
+            .document_element()
+            .ok_or_else(|| JsValue::from_str("An error occurred."))?;
 
         // For whatever reason css doesn't populate the width and height field,
         // so we have to do that manually
@@ -201,7 +222,9 @@ impl<'a> WebBrowser<'a> {
         canvas.set_height(canvas.client_height() as u32);
 
         // Create the WebBrowser object
-        let context_object = canvas.get_context("2d")?.ok_or_else(|| JsValue::from_str("Could not get rendering context"))?;
+        let context_object = canvas
+            .get_context("2d")?
+            .ok_or_else(|| JsValue::from_str("Could not get rendering context"))?;
         let context = context_object
             .dyn_into::<web_sys::CanvasRenderingContext2d>()
             .map_err(|_| JsValue::from_str("Unexpected rendering context"))?;
@@ -256,7 +279,10 @@ impl<'a> WebBrowser<'a> {
             _scroll_handler: scroll_handler,
         };
 
-        let key_bindings = ret.get_keybindings(LOCALE).await.ok_or_else(|| JsValue::from_str("Failed to get keybindings"))?;
+        let key_bindings = ret
+            .get_keybindings(LOCALE)
+            .await
+            .ok_or_else(|| JsValue::from_str("Failed to get keybindings"))?;
 
         ret._keyboard_handler = Some(gloo_events::EventListener::new(
             &document_element,
@@ -273,10 +299,7 @@ impl<'a> WebBrowser<'a> {
         Ok(ret)
     }
 
-    async fn get_file_internal(
-        &self,
-        path: &str,
-    ) -> Result<bytes::Bytes, reqwest::Error> {
+    async fn get_file_internal(&self, path: &str) -> Result<bytes::Bytes, reqwest::Error> {
         let response = self.web_client.get(&(self.host.to_owned() + path)).send();
         response.await?.bytes().await
     }
@@ -285,7 +308,6 @@ impl<'a> WebBrowser<'a> {
 // Implementation of the Platform trait for the WebBrowser type
 #[async_trait(?Send)]
 impl alemian_saga_core::Platform for WebBrowser<'_> {
-
     type Error = WebError;
 
     type Image = web_sys::HtmlImageElement;
@@ -358,22 +380,27 @@ impl alemian_saga_core::Platform for WebBrowser<'_> {
     async fn get_file(&self, path: &str) -> Result<Self::File, Self::Error> {
         match self.get_file_internal(path).await {
             Ok(ret) => Ok(ret),
-            Err(err) => Err(WebError{ msg: err.to_string()}),
+            Err(err) => Err(WebError {
+                msg: err.to_string(),
+            }),
         }
     }
 
     async fn get_user_file(&self, path: &str) -> Result<Self::UserFile, Self::Error> {
         let promise = self.user_files.doc(&path.into()).get();
-        let future : wasm_bindgen_futures::JsFuture = promise.into();
+        let future: wasm_bindgen_futures::JsFuture = promise.into();
         let doc_untyped = future.await?;
-        let maybe_doc : Option<&DocumentSnapshot> = doc_untyped.dyn_ref();
-        let doc = maybe_doc.ok_or(WebError { msg: "Promise yielded incorrect type".to_owned()})?;
+        let maybe_doc: Option<&DocumentSnapshot> = doc_untyped.dyn_ref();
+        let doc = maybe_doc.ok_or(WebError {
+            msg: "Promise yielded incorrect type".to_owned(),
+        })?;
         if doc.exists() {
-            let file : Blob = doc.get(&"contents".into()).dyn_into()?;
+            let file: Blob = doc.get(&"contents".into()).dyn_into()?;
             Ok(file.toUint8Array().to_vec())
-        }
-        else {
-            Err(WebError { msg: format!("Document {} does not exist", path) })
+        } else {
+            Err(WebError {
+                msg: format!("Document {} does not exist", path),
+            })
         }
     }
 

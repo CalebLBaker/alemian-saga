@@ -59,4 +59,3 @@ impl<T: std::ops::Div<Output = T> + Copy> std::ops::Div<T> for Vector<T> {
         }
     }
 }
-

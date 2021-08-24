@@ -11,7 +11,7 @@ pub struct Game<'a, P: Platform> {
     pub unit_infobar: Option<P::Image>,
     pub screen: Rectangle<MapDistance>,
     pub last_mouse_pan: P::Instant,
-    pub unit_images: std::collections::HashMap<serialization::Class, P::Image>
+    pub unit_images: std::collections::HashMap<serialization::Class, P::Image>,
 }
 
 impl<'a, P: Platform> Game<'a, P> {
@@ -86,21 +86,26 @@ impl<'a, P: Platform> Game<'a, P> {
         let stat_y = utility::multiply_frac(height, 5, 8);
 
         if let Some(unit) = tile.unit {
-            self.platform.attempt_draw(self.unit_infobar.as_ref(), &position);
             self.platform
-                .draw_text(unit.name, offset, max_width);
-            self.platform.draw_text("lv 0", Vector { x: offset_scalar, y: stat_y }, size.y);
+                .attempt_draw(self.unit_infobar.as_ref(), &position);
+            self.platform.draw_text(unit.name, offset, max_width);
+            self.platform.draw_text(
+                "lv 0",
+                Vector {
+                    x: offset_scalar,
+                    y: stat_y,
+                },
+                size.y,
+            );
             let hp_x = utility::multiply_frac(size.y, 5, 2);
-            self.platform.draw_text("30/30", Vector { x: hp_x, y: stat_y }, size.y);
-        }
-        else {
-
+            self.platform
+                .draw_text("30/30", Vector { x: hp_x, y: stat_y }, size.y);
+        } else {
             let info = &tile.info;
 
             self.platform
                 .attempt_draw(self.infobar_image.as_ref(), &position);
-            self.platform
-                .draw_text(info.name, offset, max_width);
+            self.platform.draw_text(info.name, offset, max_width);
             let stat_width = height * 13.into() / 16.into();
             let move_pos = Vector {
                 x: utility::multiply_frac(height, 3, 4),
@@ -147,8 +152,8 @@ impl<'a, P: Platform> Game<'a, P> {
         let screen_pos = self.get_screen_pos(pos);
         self.platform.attempt_draw(tile.image, &screen_pos);
         if let Some(u) = tile.unit {
-            self.platform.attempt_draw(self.unit_images.get(&u.class), &screen_pos);
+            self.platform
+                .attempt_draw(self.unit_images.get(&u.class), &screen_pos);
         }
     }
 }
-

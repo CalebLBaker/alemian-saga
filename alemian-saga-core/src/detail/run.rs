@@ -59,7 +59,7 @@ pub async fn run_internal<P: Platform>(
             Tile {
                 image: None,
                 info: &error_tile,
-                unit: None
+                unit: None,
             }
         })
     });
@@ -82,7 +82,7 @@ pub async fn run_internal<P: Platform>(
             size: map_size,
         },
         last_mouse_pan,
-        unit_images: std::collections::HashMap::new()
+        unit_images: std::collections::HashMap::new(),
     };
 
     for (c, f) in unit_image_futures.into_iter() {
@@ -92,7 +92,10 @@ pub async fn run_internal<P: Platform>(
     }
 
     for u in map_file.blue.iter() {
-        if let Some(t) = game.map.get_mut((u.position.y as usize, u.position.x as usize)) {
+        if let Some(t) = game
+            .map
+            .get_mut((u.position.y as usize, u.position.x as usize))
+        {
             t.unit = Some(u)
         }
     }
@@ -253,4 +256,3 @@ pub async fn run_internal<P: Platform>(
 
     Ok(())
 }
-
