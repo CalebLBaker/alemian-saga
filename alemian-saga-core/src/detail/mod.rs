@@ -1,4 +1,5 @@
 mod constants;
+mod file_wrapper;
 mod game;
 mod keybindings;
 mod rectangle;
@@ -14,3 +15,4 @@ pub use rectangle::Rectangle;
 pub use run::run_internal;
 use serialization::MapDistance;
 use tile::Tile;
+pub use file_wrapper::FileWrapper;

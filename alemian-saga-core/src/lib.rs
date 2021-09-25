@@ -162,9 +162,15 @@ pub trait Platform {
         locale: &str,
     ) -> Option<std::collections::HashMap<Self::InputType, Event<Self::MouseDistance>>> {
         let mut ret = std::collections::HashMap::new();
-        let keybindings_path = format!("keybindings/{}.json", locale);
-        let bindings_file = self.get_file(keybindings_path.as_str()).await.ok()?;
-        let bindings: detail::Keybindings = serde_json::from_slice(bindings_file.as_ref()).ok()?;
+        let user_file = self.get_user_file("keybindings.json").await;
+        let file : detail::FileWrapper<Self> = match user_file {
+            Ok(f) => detail::FileWrapper::User(f),
+            _ => {
+                let keybindings_path = format!("keybindings/{}.json", locale);
+                detail::FileWrapper::Global(self.get_file(keybindings_path.as_str()).await.ok()?)
+            }
+        };
+        let bindings : detail::Keybindings = serde_json::from_slice(file.as_ref()).ok()?;
         Self::add_bindings(&mut ret, bindings.Right, Event::Right);
         Self::add_bindings(&mut ret, bindings.Left, Event::Left);
         Self::add_bindings(&mut ret, bindings.Up, Event::Up);
