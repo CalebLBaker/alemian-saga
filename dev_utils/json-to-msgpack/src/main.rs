@@ -19,7 +19,7 @@ struct JsonUnit {
     class: JsonClass,
     name: String,
     level: u32,
-    hp: u32,
+    hp: i32,
     position: alemian_saga_core::Vector<serialization::MapDistance>,
 }
 
@@ -37,7 +37,7 @@ enum JsonContent {
 #[derive(serde::Deserialize)]
 struct TileTypeInfo {
     image: String,
-    move_cost: u32,
+    move_cost: i32,
     defense: i32,
     evade: i32,
 }
@@ -64,8 +64,8 @@ fn main() {
                         .map(|j| serialization::Unit {
                             class: json_class_to_class(j.class),
                             name: j.name.as_str(),
-                            hp: j.hp,
-                            level: j.level,
+                            hp: alemian_saga_core::numeric_types::hp(j.hp),
+                            level: alemian_saga_core::numeric_types::level(j.level),
                             position: j.position,
                         })
                         .collect::<Vec<_>>();
@@ -81,13 +81,13 @@ fn main() {
                             tile_types.push(serialization::TileType {
                                 name: string_map.get(k).unwrap().as_str(),
                                 image: v.image.as_str(),
-                                defense: v.defense,
-                                evade: v.evade,
-                                move_cost: v.move_cost,
+                                defense: alemian_saga_core::numeric_types::hp(v.defense),
+                                evade: alemian_saga_core::numeric_types::accuracy_pts(v.evade),
+                                move_cost: alemian_saga_core::numeric_types::map_dist(v.move_cost),
                             });
                         }
                         let new_map = serialization::Map {
-                            tile_types: tile_types,
+                            tile_types,
                             map: map.map(|x| *name_to_index.get(x).unwrap()),
                             blue: out_blue.clone(),
                         };

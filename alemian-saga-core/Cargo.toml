@@ -16,6 +16,7 @@ rmp-serde = "0.15.1"
 serde = { version = "1.0.119", features = ["derive"] }
 serde_json = "1.0"
 serde_repr = "0.1.6"
+uom = { version = "0.31.1", features = ["i32", "u32", "std", "use_serde"] }
 
 [features]
 # Treat warnings as errors

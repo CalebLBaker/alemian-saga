@@ -18,17 +18,19 @@ impl<'a, P: Platform> Game<'a, P> {
     pub fn get_tile_size(&self) -> Vector<P::ScreenDistance> {
         self.platform
             .get_screen_size()
-            .piecewise_divide(self.screen.size)
+            .piecewise_divide(self.screen.size.lossy_cast::<P::ScreenDistance>().unwrap())
     }
 
     fn get_tile(&self, pos: Vector<MapDistance>) -> &Tile<'a, P> {
-        &self.map[[pos.y as usize, pos.x as usize]]
+        &self.map[[pos.y.value as usize, pos.x.value as usize]]
     }
 
     fn get_screen_pos(&self, pos: Vector<MapDistance>) -> Rectangle<P::ScreenDistance> {
         let tile_size = self.get_tile_size();
+        let top_left = pos - self.screen.top_left;
         Rectangle {
-            top_left: tile_size.piecewise_multiply(pos - self.screen.top_left),
+            top_left: tile_size
+                .piecewise_multiply(top_left.lossy_cast::<P::ScreenDistance>().unwrap()),
             size: tile_size,
         }
     }
@@ -36,15 +38,15 @@ impl<'a, P: Platform> Game<'a, P> {
     pub fn get_map_size(&self) -> Vector<MapDistance> {
         let (rows, columns) = self.map.dim();
         Vector {
-            x: columns as MapDistance,
-            y: rows as MapDistance,
+            x: numeric_types::map_dist(columns as i32),
+            y: numeric_types::map_dist(rows as i32),
         }
     }
 
     pub fn get_map_pos(&self, pos: Vector<P::MouseDistance>) -> Option<Vector<MapDistance>> {
         let screen_pos = pos.cast::<P::ScreenDistance>();
         let pos_on_screen = screen_pos.piecewise_divide(self.get_tile_size());
-        Some(pos_on_screen.lossy_cast::<MapDistance>()? + self.screen.top_left)
+        Some(Vector::<MapDistance>::from(pos_on_screen.lossy_cast::<i32>()?) + self.screen.top_left)
     }
 
     pub fn move_cursor(&mut self, pos: Vector<MapDistance>) {
@@ -62,9 +64,9 @@ impl<'a, P: Platform> Game<'a, P> {
     }
 
     fn draw_infobar(&self) {
-        let height = self.platform.get_height() / 15.into();
-        let size = Vector {
-            x: height * 4.into(),
+        let height = self.platform.get_height() / P::ScreenDistance::from(15);
+        let size = Vector::<P::ScreenDistance> {
+            x: height * P::ScreenDistance::from(4),
             y: height,
         };
         let position = Rectangle {
@@ -77,7 +79,7 @@ impl<'a, P: Platform> Game<'a, P> {
 
         let tile = self.get_tile(self.cursor_pos);
 
-        let offset_scalar = size.y / 4.into();
+        let offset_scalar = size.y / P::ScreenDistance::from(4);
         let offset = Vector {
             x: offset_scalar,
             y: offset_scalar,
@@ -90,7 +92,7 @@ impl<'a, P: Platform> Game<'a, P> {
                 .attempt_draw(self.unit_infobar.as_ref(), &position);
             self.platform.draw_text(unit.name, offset, max_width);
             self.platform.draw_text(
-                "lv 0",
+                format!("lv {}", unit.level.value).as_str(),
                 Vector {
                     x: offset_scalar,
                     y: stat_y,
@@ -98,15 +100,16 @@ impl<'a, P: Platform> Game<'a, P> {
                 size.y,
             );
             let hp_x = utility::multiply_frac(size.y, 5, 2);
+            let hp_str = format!("{}/{}", unit.hp.value, unit.hp.value);
             self.platform
-                .draw_text("30/30", Vector { x: hp_x, y: stat_y }, size.y);
+                .draw_text(hp_str.as_str(), Vector { x: hp_x, y: stat_y }, size.y);
         } else {
             let info = &tile.info;
 
             self.platform
                 .attempt_draw(self.infobar_image.as_ref(), &position);
             self.platform.draw_text(info.name, offset, max_width);
-            let stat_width = height * 13.into() / 16.into();
+            let stat_width = height * P::ScreenDistance::from(13) / P::ScreenDistance::from(16);
             let move_pos = Vector {
                 x: utility::multiply_frac(height, 3, 4),
                 y: stat_y,
@@ -116,15 +119,21 @@ impl<'a, P: Platform> Game<'a, P> {
                 y: stat_y,
             };
             let evade_pos = Vector {
-                x: height * 3.into(),
+                x: height * P::ScreenDistance::from(3),
                 y: stat_y,
             };
+            self.platform.draw_text(
+                info.move_cost.value.to_string().as_str(),
+                move_pos,
+                stat_width,
+            );
+            self.platform.draw_text(
+                info.defense.value.to_string().as_str(),
+                defense_pos,
+                stat_width,
+            );
             self.platform
-                .draw_text(info.move_cost.to_string().as_str(), move_pos, stat_width);
-            self.platform
-                .draw_text(info.defense.to_string().as_str(), defense_pos, stat_width);
-            self.platform
-                .draw_text(info.evade.to_string().as_str(), evade_pos, stat_width);
+                .draw_text(info.evade.value.to_string().as_str(), evade_pos, stat_width);
         }
     }
 
@@ -139,8 +148,8 @@ impl<'a, P: Platform> Game<'a, P> {
         ];
         for ((r, c), t) in self.map.slice(slice_helper).indexed_iter() {
             let map_pos = Vector {
-                x: c as MapDistance,
-                y: r as MapDistance,
+                x: numeric_types::map_dist(c as i32),
+                y: numeric_types::map_dist(r as i32),
             } + top_left;
             self.draw_tile(t, map_pos);
         }

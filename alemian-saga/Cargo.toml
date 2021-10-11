@@ -3,7 +3,7 @@ name = "alemian-saga"
 version = "0.3.1"
 authors = ["CalebLBaker <calebbaker774@gmail.com>"]
 edition = "2018"
-description = "In-browser web sersion of Alemian Saga: The Revolt"
+description = "In-browser web version of Alemian Saga: The Revolt"
 repository = "https://github.com/CalebLBaker/alemian-saga"
 license = "MIT"
 

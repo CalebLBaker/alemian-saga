@@ -1,7 +1,12 @@
 #![cfg_attr(feature = "strict", deny(warnings))]
+#![feature(const_fn_trait_bound)]
 
 mod detail;
+pub mod numeric_types;
 pub mod serialization;
+
+#[macro_use]
+extern crate uom;
 
 use std::{cmp, ops};
 
@@ -9,27 +14,6 @@ use async_trait::async_trait;
 use num_traits::FromPrimitive;
 
 use detail::Rectangle;
-
-// A trait that should be implemented by all primitive numberic types
-pub trait Scalar:
-    ops::Sub<Output = Self>
-    + ops::Div<Output = Self>
-    + ops::Mul<Output = Self>
-    + ops::Add<Output = Self>
-    + cmp::PartialOrd
-    + Copy
-{
-}
-
-impl<T> Scalar for T where
-    T: ops::Sub<Output = T>
-        + ops::Div<Output = T>
-        + ops::Mul<Output = Self>
-        + ops::Add<Output = Self>
-        + cmp::PartialOrd
-        + Copy
-{
-}
 
 // Trait used for abstracting away logic that is specific to a particular platform
 #[async_trait(?Send)]
@@ -44,13 +28,19 @@ pub trait Platform {
     type InputType: Eq + std::hash::Hash;
 
     // Type used to represent distance in mouse events (should be the same ScreenDistance
-    type MouseDistance: Scalar;
+    type MouseDistance: Copy;
 
     // Type used to represent distance on the screen
-    type ScreenDistance: Scalar
-        + From<u32>
+    type ScreenDistance: From<i32>
+        + Copy
         + From<Self::MouseDistance>
+        + ops::Add<Output = Self::ScreenDistance>
+        + ops::Sub<Output = Self::ScreenDistance>
+        + ops::Mul<Output = Self::ScreenDistance>
+        + ops::Div<Output = Self::ScreenDistance>
+        + cmp::PartialOrd
         + num_traits::ToPrimitive
+        + num_traits::NumCast
         + FromPrimitive;
 
     // Future type returned by get_image
@@ -163,14 +153,14 @@ pub trait Platform {
     ) -> Option<std::collections::HashMap<Self::InputType, Event<Self::MouseDistance>>> {
         let mut ret = std::collections::HashMap::new();
         let user_file = self.get_user_file("keybindings.json").await;
-        let file : detail::FileWrapper<Self> = match user_file {
+        let file: detail::FileWrapper<Self> = match user_file {
             Ok(f) => detail::FileWrapper::User(f),
             _ => {
                 let keybindings_path = format!("keybindings/{}.json", locale);
                 detail::FileWrapper::Global(self.get_file(keybindings_path.as_str()).await.ok()?)
             }
         };
-        let bindings : detail::Keybindings = serde_json::from_slice(file.as_ref()).ok()?;
+        let bindings: detail::Keybindings = serde_json::from_slice(file.as_ref()).ok()?;
         Self::add_bindings(&mut ret, bindings.Right, Event::Right);
         Self::add_bindings(&mut ret, bindings.Left, Event::Left);
         Self::add_bindings(&mut ret, bindings.Up, Event::Up);
@@ -200,7 +190,7 @@ pub struct Vector<T> {
 
 // Type used to represent user input events
 #[derive(Clone, Copy)]
-pub enum Event<P: Scalar> {
+pub enum Event<P> {
     Right,
     Left,
     Up,

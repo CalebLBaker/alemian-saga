@@ -14,7 +14,11 @@ impl<E: std::string::ToString> From<E> for Error {
     }
 }
 
-pub fn multiply_frac<T: Scalar + From<u32>>(x: T, num: u32, den: u32) -> T {
+pub fn multiply_frac<T: std::ops::Mul<Output = T> + std::ops::Div<Output = T> + From<i32>>(
+    x: T,
+    num: i32,
+    den: i32,
+) -> T {
     x * num.into() / den.into()
 }
 

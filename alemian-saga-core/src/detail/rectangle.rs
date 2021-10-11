@@ -6,7 +6,7 @@ pub struct Rectangle<T> {
     pub size: Vector<T>,
 }
 
-impl<T: Scalar> Rectangle<T> {
+impl<T: std::ops::Add<Output = T> + Copy> Rectangle<T> {
     pub fn top(&self) -> T {
         self.top_left.y
     }
