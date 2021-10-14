@@ -25,6 +25,8 @@
         "class": "Noble",
         "level": 0,
         "hp": 30,
-        "position": { "x": 5, "y": 8 }
+        "movement": 5,
+        "remaining_move": 5,
+        "position": { "x": 5, "y": 6 }
     } ]
 }

@@ -1,15 +1,14 @@
-use crate::Vector;
-
-pub type MapDistance = u32;
+use crate::*;
+pub use numeric_types::*;
 
 // Serialized format for metadata about a particular type of tile
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct TileType<'a> {
     pub image: &'a str,
     pub name: &'a str,
-    pub defense: i32,
-    pub evade: i32,
-    pub move_cost: u32,
+    pub defense: HitPoints,
+    pub evade: AccuracyPoints,
+    pub move_cost: MapDistance,
 }
 
 // Serialized format for maps
@@ -33,7 +32,9 @@ pub enum Class {
 pub struct Unit<'a> {
     pub name: &'a str,
     pub class: Class,
-    pub level: u32,
-    pub hp: u32,
+    pub level: Level,
+    pub hp: HitPoints,
+    pub movement: MapDistance,
+    pub remaining_move: MapDistance,
     pub position: Vector<MapDistance>,
 }

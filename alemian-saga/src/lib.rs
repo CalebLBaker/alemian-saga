@@ -15,6 +15,8 @@ use alemian_saga_core::Platform;
 
 const HOST: &str = "https://alemiansaga.web.app/";
 const FONT: &str = "1.5rem serif";
+const HIGHLIGHT_COLOR: &str = "#3333ff";
+const FONT_COLOR: &str = "black";
 const LANGUAGE: &str = "english";
 const LOCALE: &str = "us";
 const EVENT_QUEUE_CAPACITY: usize = 8;
@@ -229,6 +231,7 @@ impl<'a> WebBrowser<'a> {
             .dyn_into::<web_sys::CanvasRenderingContext2d>()
             .map_err(|_| JsValue::from_str("Unexpected rendering context"))?;
         context.set_font(FONT);
+        context.set_fill_style(&JsValue::from_str(FONT_COLOR));
         let web_client = reqwest::Client::new();
 
         let mut mouse_event_queue = event_queue.clone();
@@ -344,6 +347,22 @@ impl alemian_saga_core::Platform for WebBrowser<'_> {
         let context = &self.context;
         let _ = context
             .draw_image_with_html_image_element_and_dw_and_dh(image, left, top, width, height);
+    }
+
+    fn draw_rectangle(
+        &self,
+        left: Self::ScreenDistance,
+        top: Self::ScreenDistance,
+        width: Self::ScreenDistance,
+        height: Self::ScreenDistance,
+    ) {
+        WebBrowser::log("drawing rectangle");
+        self.context
+            .set_fill_style(&JsValue::from_str(HIGHLIGHT_COLOR));
+        self.context.set_global_alpha(0.5);
+        self.context.fill_rect(left, top, width, height);
+        self.context.set_global_alpha(1.0);
+        self.context.set_fill_style(&JsValue::from_str(FONT_COLOR));
     }
 
     fn draw_text_primitive(&self, text: &str, x: f64, y: f64, max_width: f64) {

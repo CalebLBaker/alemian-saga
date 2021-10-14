@@ -1,6 +1,6 @@
 [package]
 name = "json-to-msgpack"
-version = "0.2.2"
+version = "0.3.0"
 authors = ["CalebLBaker <calebbaker774@gmail.com>"]
 edition = "2018"
 

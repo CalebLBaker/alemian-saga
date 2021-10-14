@@ -25,7 +25,7 @@
                     uiShown: function() {}
                 },
                 signInFlow: 'popup',
-                signInSuccessUrl: 'http://alemiansaga.web.app/game.html',
+                signInSuccessUrl: 'https://alemiansaga.web.app/game.html',
                 signInOptions: [
                     {
                         provider: firebase.auth.EmailAuthProvider.PROVIDER_ID,
@@ -38,5 +38,8 @@
             });
         </script>
         <div id="firebaseui-auth-container" />
+        <form action="https://alemiansaga.web.app/game.html" method="get">
+            <button>Play as Guest</button>
+        </form>
     </body>
 </html>

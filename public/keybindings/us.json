@@ -4,5 +4,6 @@
     "Left": ["h", "a", "ArrowLeft"],
     "Right": ["l", "d", "ArrowRight"],
     "ZoomIn": ["="],
-    "ZoomOut": ["-"]
+    "ZoomOut": ["-"],
+    "Select": [" ", "Enter"]
 }

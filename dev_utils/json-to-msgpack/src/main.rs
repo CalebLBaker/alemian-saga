@@ -1,3 +1,4 @@
+use alemian_saga_core::numeric_types::*;
 use alemian_saga_core::serialization;
 use std::collections;
 
@@ -18,9 +19,11 @@ fn json_class_to_class(json_class: JsonClass) -> serialization::Class {
 struct JsonUnit {
     class: JsonClass,
     name: String,
-    level: u32,
-    hp: u32,
+    level: Level,
+    hp: HitPoints,
     position: alemian_saga_core::Vector<serialization::MapDistance>,
+    movement: MapDistance,
+    remaining_move: MapDistance,
 }
 
 #[allow(non_snake_case)]
@@ -37,9 +40,9 @@ enum JsonContent {
 #[derive(serde::Deserialize)]
 struct TileTypeInfo {
     image: String,
-    move_cost: u32,
-    defense: i32,
-    evade: i32,
+    move_cost: MapDistance,
+    defense: HitPoints,
+    evade: AccuracyPoints,
 }
 
 #[allow(non_snake_case)]
@@ -67,6 +70,8 @@ fn main() {
                             hp: j.hp,
                             level: j.level,
                             position: j.position,
+                            movement: j.movement,
+                            remaining_move: j.remaining_move,
                         })
                         .collect::<Vec<_>>();
                     for l in LANGUAGES.iter() {
@@ -87,7 +92,7 @@ fn main() {
                             });
                         }
                         let new_map = serialization::Map {
-                            tile_types: tile_types,
+                            tile_types,
                             map: map.map(|x| *name_to_index.get(x).unwrap()),
                             blue: out_blue.clone(),
                         };
