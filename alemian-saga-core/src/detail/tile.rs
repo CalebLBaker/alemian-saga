@@ -5,6 +5,7 @@ pub struct Tile<'a, P: Platform> {
     pub image: Option<&'a P::Image>,
     pub info: &'a serialization::TileType<'a>,
     pub unit: Option<&'a serialization::Unit<'a>>,
+    pub highlighted: bool,
 }
 
 pub fn get_tile<'a, P: Platform>(
@@ -17,5 +18,6 @@ pub fn get_tile<'a, P: Platform>(
         image: image_map.get(tile_type.image),
         info: tile_type,
         unit: None,
+        highlighted: false,
     })
 }

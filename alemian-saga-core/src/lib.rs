@@ -69,6 +69,9 @@ pub trait Platform {
         height: Self::ScreenDistance,
     );
 
+    // Draw a rectangle to the screen
+    fn draw_rectangle(&self, left: Self::ScreenDistance, top: Self::ScreenDistance, width: Self::ScreenDistance, height: Self::ScreenDistance);
+
     // Renders text to the screen
     fn draw_text_primitive(
         &self,
@@ -167,6 +170,7 @@ pub trait Platform {
         Self::add_bindings(&mut ret, bindings.Down, Event::Down);
         Self::add_bindings(&mut ret, bindings.ZoomIn, Event::ZoomIn);
         Self::add_bindings(&mut ret, bindings.ZoomOut, Event::ZoomOut);
+        Self::add_bindings(&mut ret, bindings.Select, Event::Select);
         Some(ret)
     }
 
@@ -199,6 +203,7 @@ pub enum Event<P> {
     ZoomOut,
     MouseMove(Vector<P>),
     Redraw,
+    Select
 }
 
 // Entry point for starting game logic

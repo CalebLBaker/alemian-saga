@@ -13,4 +13,6 @@ pub struct Keybindings<'a> {
     pub ZoomIn: Vec<&'a str>,
     #[serde(default)]
     pub ZoomOut: Vec<&'a str>,
+    #[serde(default)]
+    pub Select: Vec<&'a str>
 }

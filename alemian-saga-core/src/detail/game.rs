@@ -12,16 +12,50 @@ pub struct Game<'a, P: Platform> {
     pub screen: Rectangle<MapDistance>,
     pub last_mouse_pan: P::Instant,
     pub unit_images: std::collections::HashMap<serialization::Class, P::Image>,
+    // Stored as pointers to avoid keeping multiple mutable references to tile
+    // Will only be used internally when self is mutable
+    highlighted_tiles: Vec<*mut Tile<'a, P>>,
 }
 
 impl<'a, P: Platform> Game<'a, P> {
+
+    pub fn new(platform: P, map: ndarray::Array2<Tile<'a, P>>, cursor_image: Option<P::Image>,
+               infobar_image: Option<P::Image>, unit_infobar: Option<P::Image>, last_mouse_pan: P::Instant) -> Self {
+        let (rows, columns) = map.dim();
+        Self {
+            platform,
+            cursor_pos: Vector { x: numeric_types::ZERO_TILES, y: numeric_types::ZERO_TILES },
+            map,
+            cursor_image,
+            infobar_image,
+            unit_infobar,
+            screen: Rectangle {
+                top_left: Vector {
+                    x: numeric_types::ZERO_TILES,
+                    y: numeric_types::ZERO_TILES
+                },
+                size: Vector {
+                    x: numeric_types::map_dist(columns as i32),
+                    y: numeric_types::map_dist(rows as i32)
+                }
+            },
+            last_mouse_pan,
+            unit_images: std::collections::HashMap::new(),
+            highlighted_tiles: Vec::new()
+        }
+    }
+
     pub fn get_tile_size(&self) -> Vector<P::ScreenDistance> {
         self.platform
             .get_screen_size()
             .piecewise_divide(self.screen.size.lossy_cast::<P::ScreenDistance>().unwrap())
     }
 
-    fn get_tile(&self, pos: Vector<MapDistance>) -> &Tile<'a, P> {
+    fn get_mut_tile(&mut self, pos: Vector<MapDistance>) -> &mut Tile<'a, P> {
+        &mut self.map[[pos.y.value as usize, pos.x.value as usize]]
+    }
+
+    pub fn get_tile(&self, pos: Vector<MapDistance>) -> &Tile<'a, P> {
         &self.map[[pos.y.value as usize, pos.x.value as usize]]
     }
 
@@ -164,5 +198,26 @@ impl<'a, P: Platform> Game<'a, P> {
             self.platform
                 .attempt_draw(self.unit_images.get(&u.class), &screen_pos);
         }
+        if tile.highlighted {
+            self.platform.draw_rectangle(screen_pos.left(), screen_pos.top(), screen_pos.width(), screen_pos.height());
+        }
+    }
+
+    pub fn select_tile(&mut self) {
+        for t in &self.highlighted_tiles {
+            // We could do the same thing safely by storing Vector's in highlighted_tiles and using
+            // get_mut_tile, but this should be more performant.
+            // And it's pretty trivial to see that this is actually quite safe, even if the
+            // compiler can't be convinced of it
+            unsafe { (**t).highlighted = false; }
+        }
+        self.highlighted_tiles.clear();
+        let tile = self.get_mut_tile(self.cursor_pos);
+        if tile.unit.is_some() {
+            tile.highlighted = true;
+            let tile_ptr = tile as *mut Tile<'a, P>;
+            self.highlighted_tiles.push(tile_ptr);
+        }
+        self.redraw();
     }
 }

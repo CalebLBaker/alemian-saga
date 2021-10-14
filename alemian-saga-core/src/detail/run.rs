@@ -61,6 +61,7 @@ pub async fn run_internal<P: Platform>(
                 image: None,
                 info: &error_tile,
                 unit: None,
+                highlighted: false,
             }
         })
     });
@@ -71,26 +72,7 @@ pub async fn run_internal<P: Platform>(
         y: map_dist(rows as i32),
     };
 
-    let mut game = Game {
-        platform,
-        cursor_pos: Vector {
-            x: ZERO_TILES,
-            y: ZERO_TILES,
-        },
-        map,
-        cursor_image: cursor_future.await,
-        infobar_image: info_future.await,
-        unit_infobar: unit_info_future.await,
-        screen: Rectangle {
-            top_left: Vector {
-                x: ZERO_TILES,
-                y: ZERO_TILES,
-            },
-            size: map_size,
-        },
-        last_mouse_pan,
-        unit_images: std::collections::HashMap::new(),
-    };
+    let mut game = Game::new(platform, map, cursor_future.await, info_future.await, unit_info_future.await, last_mouse_pan);
 
     for (c, f) in unit_image_futures.into_iter() {
         if let Some(image) = f.await {
@@ -257,6 +239,9 @@ pub async fn run_internal<P: Platform>(
                 }
             }
             Event::Redraw => game.redraw(),
+            Event::Select => {
+                game.select_tile();
+            }
         }
     }
     P::log("closing");
