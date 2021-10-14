@@ -34,5 +34,7 @@ pub struct Unit<'a> {
     pub class: Class,
     pub level: Level,
     pub hp: HitPoints,
+    pub movement: MapDistance,
+    pub remaining_move: MapDistance,
     pub position: Vector<MapDistance>,
 }

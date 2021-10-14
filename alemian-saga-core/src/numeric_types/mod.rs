@@ -43,9 +43,6 @@ pub const fn map_dist(value: i32) -> MapDistance {
     }
 }
 
-pub const ZERO_TILES: MapDistance = map_dist(0);
-pub const ONE_TILE: MapDistance = map_dist(1);
-
 pub const fn hp(value: i32) -> HitPoints {
     HitPoints {
         dimension: PhantomData,
@@ -54,8 +51,6 @@ pub const fn hp(value: i32) -> HitPoints {
     }
 }
 
-pub const ZERO_HP: HitPoints = hp(0);
-
 pub const fn accuracy_pts(value: i32) -> AccuracyPoints {
     AccuracyPoints {
         dimension: PhantomData,
@@ -63,8 +58,6 @@ pub const fn accuracy_pts(value: i32) -> AccuracyPoints {
         value,
     }
 }
-
-pub const BASE_EVADE_BONUS: AccuracyPoints = accuracy_pts(0);
 
 pub const fn level(value: u32) -> Level {
     Level {

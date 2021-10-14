@@ -349,9 +349,16 @@ impl alemian_saga_core::Platform for WebBrowser<'_> {
             .draw_image_with_html_image_element_and_dw_and_dh(image, left, top, width, height);
     }
 
-    fn draw_rectangle(&self, left: Self::ScreenDistance, top: Self::ScreenDistance, width: Self::ScreenDistance, height: Self::ScreenDistance) {
+    fn draw_rectangle(
+        &self,
+        left: Self::ScreenDistance,
+        top: Self::ScreenDistance,
+        width: Self::ScreenDistance,
+        height: Self::ScreenDistance,
+    ) {
         WebBrowser::log("drawing rectangle");
-        self.context.set_fill_style(&JsValue::from_str(HIGHLIGHT_COLOR));
+        self.context
+            .set_fill_style(&JsValue::from_str(HIGHLIGHT_COLOR));
         self.context.set_global_alpha(0.5);
         self.context.fill_rect(left, top, width, height);
         self.context.set_global_alpha(1.0);

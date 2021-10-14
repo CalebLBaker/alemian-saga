@@ -1,11 +1,24 @@
 use crate::*;
+use detail::constants::UNREACHABLE;
 
 // Represents a tile in the map
 pub struct Tile<'a, P: Platform> {
     pub image: Option<&'a P::Image>,
     pub info: &'a serialization::TileType<'a>,
-    pub unit: Option<&'a serialization::Unit<'a>>,
-    pub highlighted: bool,
+    pub unit: std::cell::Cell<Option<&'a serialization::Unit<'a>>>,
+    pub remaining_move: std::cell::Cell<numeric_types::MapDistance>,
+}
+
+pub fn make_tile<'a, P: Platform>(
+    image: Option<&'a P::Image>,
+    info: &'a serialization::TileType<'a>,
+) -> Tile<'a, P> {
+    Tile {
+        image,
+        info,
+        unit: std::cell::Cell::new(None),
+        remaining_move: std::cell::Cell::new(UNREACHABLE),
+    }
 }
 
 pub fn get_tile<'a, P: Platform>(
@@ -14,10 +27,5 @@ pub fn get_tile<'a, P: Platform>(
     type_id: usize,
 ) -> Option<Tile<'a, P>> {
     let tile_type = tile_types.get(type_id)?;
-    Some(Tile {
-        image: image_map.get(tile_type.image),
-        info: tile_type,
-        unit: None,
-        highlighted: false,
-    })
+    Some(make_tile(image_map.get(tile_type.image), tile_type))
 }

@@ -9,6 +9,8 @@ license = "MIT"
 
 [dependencies]
 async-trait = "0.1.42"
+binary-heap-plus = "0.4.1"
+compare = "0.1.0"
 futures = "0.3.12"
 ndarray = { version = "0.14.0", features = ["serde"] }
 num-traits = "0.2.14"

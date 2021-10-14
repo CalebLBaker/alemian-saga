@@ -70,7 +70,13 @@ pub trait Platform {
     );
 
     // Draw a rectangle to the screen
-    fn draw_rectangle(&self, left: Self::ScreenDistance, top: Self::ScreenDistance, width: Self::ScreenDistance, height: Self::ScreenDistance);
+    fn draw_rectangle(
+        &self,
+        left: Self::ScreenDistance,
+        top: Self::ScreenDistance,
+        width: Self::ScreenDistance,
+        height: Self::ScreenDistance,
+    );
 
     // Renders text to the screen
     fn draw_text_primitive(
@@ -203,7 +209,7 @@ pub enum Event<P> {
     ZoomOut,
     MouseMove(Vector<P>),
     Redraw,
-    Select
+    Select,
 }
 
 // Entry point for starting game logic

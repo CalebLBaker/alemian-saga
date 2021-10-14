@@ -1,6 +1,7 @@
 use futures::StreamExt;
 
 use crate::*;
+use constants::*;
 use detail::*;
 use numeric_types::*;
 
@@ -53,16 +54,11 @@ pub async fn run_internal<P: Platform>(
     }
 
     // Generate the map
-    let map = map_file.map.map(|i| {
+    let mut map = map_file.map.map(|i| {
         let tile = tile::get_tile::<P>(&image_map, &map_file.tile_types, *i as usize);
         tile.unwrap_or_else(|| {
             P::log("Error: Invalid map file");
-            Tile {
-                image: None,
-                info: &error_tile,
-                unit: None,
-                highlighted: false,
-            }
+            tile::make_tile(None, &error_tile)
         })
     });
 
@@ -72,7 +68,14 @@ pub async fn run_internal<P: Platform>(
         y: map_dist(rows as i32),
     };
 
-    let mut game = Game::new(platform, map, cursor_future.await, info_future.await, unit_info_future.await, last_mouse_pan);
+    let mut game = Game::new(
+        platform,
+        &mut map,
+        cursor_future.await,
+        info_future.await,
+        unit_info_future.await,
+        last_mouse_pan,
+    );
 
     for (c, f) in unit_image_futures.into_iter() {
         if let Some(image) = f.await {
@@ -81,12 +84,7 @@ pub async fn run_internal<P: Platform>(
     }
 
     for u in map_file.blue.iter() {
-        if let Some(t) = game
-            .map
-            .get_mut((u.position.y.value as usize, u.position.x.value as usize))
-        {
-            t.unit = Some(u)
-        }
+        game.add_unit(u);
     }
 
     game.redraw();

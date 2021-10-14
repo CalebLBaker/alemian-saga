@@ -1,3 +1,4 @@
+use alemian_saga_core::numeric_types::*;
 use alemian_saga_core::serialization;
 use std::collections;
 
@@ -18,9 +19,11 @@ fn json_class_to_class(json_class: JsonClass) -> serialization::Class {
 struct JsonUnit {
     class: JsonClass,
     name: String,
-    level: u32,
-    hp: i32,
+    level: Level,
+    hp: HitPoints,
     position: alemian_saga_core::Vector<serialization::MapDistance>,
+    movement: MapDistance,
+    remaining_move: MapDistance,
 }
 
 #[allow(non_snake_case)]
@@ -37,9 +40,9 @@ enum JsonContent {
 #[derive(serde::Deserialize)]
 struct TileTypeInfo {
     image: String,
-    move_cost: i32,
-    defense: i32,
-    evade: i32,
+    move_cost: MapDistance,
+    defense: HitPoints,
+    evade: AccuracyPoints,
 }
 
 #[allow(non_snake_case)]
@@ -64,9 +67,11 @@ fn main() {
                         .map(|j| serialization::Unit {
                             class: json_class_to_class(j.class),
                             name: j.name.as_str(),
-                            hp: alemian_saga_core::numeric_types::hp(j.hp),
-                            level: alemian_saga_core::numeric_types::level(j.level),
+                            hp: j.hp,
+                            level: j.level,
                             position: j.position,
+                            movement: j.movement,
+                            remaining_move: j.remaining_move,
                         })
                         .collect::<Vec<_>>();
                     for l in LANGUAGES.iter() {
@@ -81,9 +86,9 @@ fn main() {
                             tile_types.push(serialization::TileType {
                                 name: string_map.get(k).unwrap().as_str(),
                                 image: v.image.as_str(),
-                                defense: alemian_saga_core::numeric_types::hp(v.defense),
-                                evade: alemian_saga_core::numeric_types::accuracy_pts(v.evade),
-                                move_cost: alemian_saga_core::numeric_types::map_dist(v.move_cost),
+                                defense: v.defense,
+                                evade: v.evade,
+                                move_cost: v.move_cost,
                             });
                         }
                         let new_map = serialization::Map {
