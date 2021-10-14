@@ -1,6 +1,6 @@
 [package]
 name = "alemian-saga"
-version = "0.3.1"
+version = "0.4.0"
 authors = ["CalebLBaker <calebbaker774@gmail.com>"]
 edition = "2018"
 description = "In-browser web version of Alemian Saga: The Revolt"
