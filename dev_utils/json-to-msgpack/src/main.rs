@@ -2,7 +2,7 @@ use alemian_saga_core::numeric_types::*;
 use alemian_saga_core::serialization;
 use std::collections;
 
-const LANGUAGES: [&'static str; 1] = ["english"];
+const LANGUAGES: [&str; 1] = ["english"];
 
 #[derive(Clone, Copy, serde::Deserialize)]
 enum JsonClass {
