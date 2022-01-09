@@ -11,8 +11,6 @@ use futures::SinkExt;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
-use alemian_saga_core::Platform;
-
 const HOST: &str = "http://localhost/";
 const FONT: &str = "1.5rem serif";
 const HIGHLIGHT_COLOR: &str = "#3333ff";
@@ -282,8 +280,7 @@ impl<'a> WebBrowser<'a> {
             _scroll_handler: scroll_handler,
         };
 
-        let key_bindings = ret
-            .get_keybindings(LOCALE)
+        let key_bindings = alemian_saga_core::get_keybindings(&ret, LOCALE)
             .await
             .ok_or_else(|| JsValue::from_str("Failed to get keybindings"))?;
 

@@ -1,0 +1,23 @@
+[package]
+name = "alemian-saga-desktop"
+version = "0.1.0"
+authors = ["CalebLBaker <calebbaker774@gmail.com>"]
+edition = "2018"
+description = "Desktop version of Alemian Saga: The Revolt"
+repository = "https://github.com/CalebLBaker/alemian-saga"
+license = "MIT"
+
+[dependencies]
+async-trait = "^0.1"
+futures = { version = "^0.3", features = ["executor", "thread-pool"] }
+piston_window = "^0.120"
+alemian-saga-core = { path = "../alemian-saga-core", features = ["multithreaded"] }
+
+[features]
+# Treat warnings as errors
+strict = ["alemian-saga-core/strict"]
+
+[profile.release]
+lto = true
+
+

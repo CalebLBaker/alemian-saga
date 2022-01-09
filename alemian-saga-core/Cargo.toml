@@ -2,7 +2,7 @@
 name = "alemian-saga-core"
 version = "0.4.0"
 authors = ["CalebLBaker <calebbaker774@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "Game logic for Alemian Saga: The Revolt"
 repository = "https://github.com/CalebLBaker/alemian-saga"
 license = "MIT"
@@ -23,6 +23,7 @@ uom = { version = "^0.31", features = ["i32", "u32", "std", "use_serde"] }
 [features]
 # Treat warnings as errors
 strict = []
+multithreaded = []
 
 [lib]
 crate-type = ["rlib"]

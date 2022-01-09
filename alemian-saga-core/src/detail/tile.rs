@@ -1,31 +1,35 @@
 use crate::*;
 use detail::constants::UNREACHABLE;
+use detail::unit::Unit;
 
-// Represents a tile in the map
-pub struct Tile<'a, P: Platform> {
-    pub image: Option<&'a P::Image>,
-    pub info: &'a serialization::TileType<'a>,
-    pub unit: std::cell::Cell<Option<&'a serialization::Unit<'a>>>,
-    pub remaining_move: std::cell::Cell<numeric_types::MapDistance>,
+pub struct TileType<P: Platform> {
+    pub name: String,
+    pub image: Option<*const P::Image>,
+    pub move_cost: numeric_types::MapDistance,
+    pub defense: numeric_types::HitPoints,
+    pub evade: numeric_types::AccuracyPoints
 }
 
-pub fn make_tile<'a, P: Platform>(
-    image: Option<&'a P::Image>,
-    info: &'a serialization::TileType<'a>,
-) -> Tile<'a, P> {
+// Represents a tile in the map
+pub struct Tile<P: Platform> {
+    pub info: *const TileType<P>,
+    pub unit: Option<Unit>,
+    pub remaining_move: numeric_types::MapDistance,
+}
+
+pub fn make_tile<P: Platform>(
+    info: *const TileType<P>,
+) -> Tile<P> {
     Tile {
-        image,
         info,
-        unit: std::cell::Cell::new(None),
-        remaining_move: std::cell::Cell::new(UNREACHABLE),
+        unit: None,
+        remaining_move: UNREACHABLE,
     }
 }
 
-pub fn get_tile<'a, P: Platform>(
-    image_map: &'a std::collections::HashMap<&str, P::Image>,
-    tile_types: &'a [serialization::TileType],
+pub fn get_tile<P: Platform>(
+    tile_types: &[TileType<P>],
     type_id: usize,
-) -> Option<Tile<'a, P>> {
-    let tile_type = tile_types.get(type_id)?;
-    Some(make_tile(image_map.get(tile_type.image), tile_type))
+) -> Option<Tile<P>> {
+    Some(make_tile::<P>(tile_types.get(type_id)?))
 }

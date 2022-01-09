@@ -14,10 +14,9 @@ pub struct TileType<'a> {
 // Serialized format for maps
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Map<'a> {
-    #[serde(borrow)]
     pub tile_types: Vec<TileType<'a>>,
     pub map: ndarray::Array2<u32>,
-    pub blue: Vec<Unit<'a>>,
+    pub blue: Vec<Unit>,
 }
 
 #[derive(
@@ -29,8 +28,8 @@ pub enum Class {
 }
 
 #[derive(Clone, serde::Deserialize, serde::Serialize)]
-pub struct Unit<'a> {
-    pub name: &'a str,
+pub struct Unit {
+    pub name: String,
     pub class: Class,
     pub level: Level,
     pub hp: HitPoints,

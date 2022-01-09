@@ -16,9 +16,10 @@ use num_traits::FromPrimitive;
 use detail::Rectangle;
 
 // Trait used for abstracting away logic that is specific to a particular platform
-#[async_trait(?Send)]
+#[cfg_attr(feature = "multithreaded", async_trait)]
+#[cfg_attr(not(feature = "multithreaded"), async_trait(?Send))]
 pub trait Platform {
-    // Tyep used to represent errors
+    // Type used to represent errors
     type Error: std::string::ToString;
 
     // Type used to represent images
@@ -155,31 +156,6 @@ pub trait Platform {
         }
     }
 
-    // Retrieves a keybinding map describing the what keys map to what actions
-    async fn get_keybindings(
-        &self,
-        locale: &str,
-    ) -> Option<std::collections::HashMap<Self::InputType, Event<Self::MouseDistance>>> {
-        let mut ret = std::collections::HashMap::new();
-        let user_file = self.get_user_file("keybindings.json").await;
-        let file: detail::FileWrapper<Self> = match user_file {
-            Ok(f) => detail::FileWrapper::User(f),
-            _ => {
-                let keybindings_path = format!("keybindings/{}.json", locale);
-                detail::FileWrapper::Global(self.get_file(keybindings_path.as_str()).await.ok()?)
-            }
-        };
-        let bindings: detail::Keybindings = serde_json::from_slice(file.as_ref()).ok()?;
-        Self::add_bindings(&mut ret, bindings.Right, Event::Right);
-        Self::add_bindings(&mut ret, bindings.Left, Event::Left);
-        Self::add_bindings(&mut ret, bindings.Up, Event::Up);
-        Self::add_bindings(&mut ret, bindings.Down, Event::Down);
-        Self::add_bindings(&mut ret, bindings.ZoomIn, Event::ZoomIn);
-        Self::add_bindings(&mut ret, bindings.ZoomOut, Event::ZoomOut);
-        Self::add_bindings(&mut ret, bindings.Select, Event::Select);
-        Some(ret)
-    }
-
     // Renders text to the screen
     fn draw_text(
         &self,
@@ -189,6 +165,45 @@ pub trait Platform {
     ) {
         self.draw_text_primitive(text, offset.x, offset.y, max_width);
     }
+}
+
+// Trait that represents a Platform which is safe to use in threaded environments
+#[cfg_attr(feature = "multithreaded", async_trait)]
+pub trait ThreadedPlatform : Send + Platform
+  where Self::Error : Send,
+  Self::Image : Send + Sync,
+  Self::InputType: Send,
+  Self::MouseDistance: Send,
+  Self::ImageFuture: Send,
+  Self::File: Send,
+  Self::UserFile: Send,
+  Self::Instant: Send,
+  Self::Duration: Send
+{}
+
+// Retrieves a keybinding map describing the what keys map to what actions
+pub async fn get_keybindings<P: Platform> (
+    platform : &P,
+    locale: &str,
+) -> Option<std::collections::HashMap<P::InputType, Event<P::MouseDistance>>> {
+    let mut ret = std::collections::HashMap::new();
+    let user_file = platform.get_user_file("keybindings.json").await;
+    let file: detail::FileWrapper<P> = match user_file {
+        Ok(f) => detail::FileWrapper::User(f),
+        _ => {
+            let keybindings_path = format!("keybindings/{}.json", locale);
+            detail::FileWrapper::Global(platform.get_file(keybindings_path.as_str()).await.ok()?)
+        }
+    };
+    let bindings: detail::Keybindings = serde_json::from_slice(file.as_ref()).ok()?;
+    P::add_bindings(&mut ret, bindings.Right, Event::Right);
+    P::add_bindings(&mut ret, bindings.Left, Event::Left);
+    P::add_bindings(&mut ret, bindings.Up, Event::Up);
+    P::add_bindings(&mut ret, bindings.Down, Event::Down);
+    P::add_bindings(&mut ret, bindings.ZoomIn, Event::ZoomIn);
+    P::add_bindings(&mut ret, bindings.ZoomOut, Event::ZoomOut);
+    P::add_bindings(&mut ret, bindings.Select, Event::Select);
+    Some(ret)
 }
 
 // Represents a vector
@@ -222,3 +237,4 @@ pub async fn run<P: Platform>(
         P::log(e.msg.as_str());
     }
 }
+
